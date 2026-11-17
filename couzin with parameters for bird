@@ -1,0 +1,1999 @@
+
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Couzin et al. (2002) — Oiseaux, faucon, obstacles & environnements</title>
+  <style>
+    :root {
+      --bg-panel: rgba(13, 19, 31, 0.84);
+      --border: rgba(255, 255, 255, 0.12);
+      --accent: #38bdf8;
+      --accent-2: #fb923c;
+      --text: #f1f5f9;
+      --muted: #94a3b8;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      overflow: hidden;
+      font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+      background: #0b132b;
+      color: var(--text);
+      user-select: none;
+    }
+    canvas#three-canvas { display: block; width: 100vw; height: 100vh; }
+
+    .panel {
+      position: fixed;
+      background: var(--bg-panel);
+      backdrop-filter: blur(12px);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 14px 16px;
+      box-shadow: 0 10px 30px rgba(0,0,0,0.45);
+      z-index: 10;
+    }
+    #hud-left { top: 14px; left: 14px; width: 320px; }
+    h1 { font-size: 14px; font-weight: 700; color: #fff; margin-bottom: 2px; }
+    .subtitle { font-size: 11px; color: var(--muted); margin-bottom: 12px; }
+    .badge-row { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; gap: 8px; }
+    .state-badge {
+      padding: 3px 9px; border-radius: 999px; font-size: 11px; font-weight: 600;
+      background: rgba(56, 189, 248, 0.2); border: 1px solid rgba(56, 189, 248, 0.5); color: #7dd3fc;
+    }
+    .time-info { font-size: 11px; color: var(--muted); font-variant-numeric: tabular-nums; }
+    .metric { margin-bottom: 8px; }
+    .metric-header { display: flex; justify-content: space-between; font-size: 12px; margin-bottom: 3px; font-variant-numeric: tabular-nums; }
+    .bar-bg { width: 100%; height: 7px; background: rgba(255,255,255,0.08); border-radius: 4px; overflow: hidden; }
+    .bar-fill { height: 100%; width: 0%; transition: width 0.1s linear; }
+    #bar-p { background: linear-gradient(90deg, #0284c7, #38bdf8); }
+    #bar-m { background: linear-gradient(90deg, #ea580c, #fb923c); }
+    #chart-canvas {
+      width: 100%; height: 115px; background: rgba(0,0,0,0.28);
+      border: 1px solid rgba(255,255,255,0.08); border-radius: 6px; margin-top: 6px; display: block;
+    }
+    .chart-legend { display: flex; justify-content: space-between; font-size: 10px; color: var(--muted); margin-top: 4px; }
+    .env-stats { font-size: 11px; color: #cbd5e1; margin-top: 10px; line-height: 1.6; font-variant-numeric: tabular-nums; }
+
+    #hud-right { top: 14px; right: 14px; width: 340px; max-height: calc(100vh - 28px); overflow-y: auto; }
+    #hud-right::-webkit-scrollbar { width: 6px; }
+    #hud-right::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.2); border-radius: 3px; }
+    .section-title {
+      font-size: 11px; text-transform: uppercase; letter-spacing: 0.8px; color: var(--accent);
+      margin: 12px 0 8px 0; padding-bottom: 4px; border-bottom: 1px solid rgba(255,255,255,0.08); font-weight: 700;
+    }
+    .section-title:first-child { margin-top: 0; }
+    .hint { font-size: 10.5px; color: var(--muted); margin-top: 5px; line-height: 1.4; }
+
+    .preset-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+    button {
+      background: rgba(255,255,255,0.08); color: var(--text); border: 1px solid rgba(255,255,255,0.15);
+      border-radius: 6px; padding: 6px 8px; font-size: 11.5px; cursor: pointer; transition: all 0.15s ease; font-weight: 500;
+    }
+    button:hover { background: rgba(56,189,248,0.22); border-color: var(--accent); }
+    button.active { background: rgba(56,189,248,0.32); border-color: var(--accent); color: #fff; }
+    button.btn-warn { background: rgba(251,146,60,0.18); border-color: rgba(251,146,60,0.45); color: #fed7aa; }
+    button.btn-warn:hover { background: rgba(251,146,60,0.35); }
+    button.btn-danger { background: rgba(248,113,113,0.2); border-color: rgba(248,113,113,0.5); color: #fecaca; }
+    button.btn-danger:hover { background: rgba(248,113,113,0.38); }
+
+    .control-row { margin-bottom: 8px; }
+    .control-label { display: flex; justify-content: space-between; font-size: 11.5px; margin-bottom: 2px; font-variant-numeric: tabular-nums; }
+    .control-label span.val { color: var(--accent); font-weight: 600; }
+    input[type="range"] { width: 100%; accent-color: var(--accent); height: 5px; cursor: pointer; }
+    select {
+      width: 100%; background: rgba(15,23,42,0.95); color: var(--text); border: 1px solid rgba(255,255,255,0.2);
+      border-radius: 6px; padding: 5px 8px; font-size: 12px; margin-bottom: 6px; outline: none;
+    }
+    .gradient-bar { height: 8px; border-radius: 4px; background: linear-gradient(90deg, #2563eb, #06b6d4, #fde047, #ef4444); margin: 4px 0 2px 0; }
+    .gradient-labels { display: flex; justify-content: space-between; font-size: 10px; color: var(--muted); }
+    .checkbox-row { display: flex; align-items: center; gap: 8px; font-size: 11.5px; margin-bottom: 6px; cursor: pointer; }
+    .checkbox-row input { accent-color: var(--accent); cursor: pointer; }
+    .action-row { display: flex; gap: 6px; margin-top: 8px; }
+    .action-row button { flex: 1; }
+    #help-footer { bottom: 12px; left: 14px; padding: 8px 12px; font-size: 11px; color: var(--muted); }
+  </style>
+
+  <script type="importmap">
+    {
+      "imports": {
+        "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
+        "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/"
+      }
+    }
+  </script>
+</head>
+<body>
+
+  <!-- HUD Gauche -->
+  <div id="hud-left" class="panel">
+    <h1>Couzin et al. (2002) — Nuée d'Oiseaux</h1>
+    <div class="subtitle">Mémoire collective, tri spatial, faucon et obstacles (τ = 0.1 s)</div>
+
+    <div class="badge-row">
+      <span id="state-badge" class="state-badge">Vol Parallèle Dynamique</span>
+      <span id="time-info" class="time-info">t = 0.0 s (0 pas)</span>
+    </div>
+
+    <div class="metric">
+      <div class="metric-header">
+        <span>Polarisation p<sub>group</sub> (Éq. 4)</span>
+        <strong id="val-p" style="color:#38bdf8">0.000</strong>
+      </div>
+      <div class="bar-bg"><div id="bar-p" class="bar-fill"></div></div>
+    </div>
+
+    <div class="metric">
+      <div class="metric-header">
+        <span>Moment cinétique m<sub>group</sub> (Éq. 5)</span>
+        <strong id="val-m" style="color:#fb923c">0.000</strong>
+      </div>
+      <div class="bar-bg"><div id="bar-m" class="bar-fill"></div></div>
+    </div>
+
+    <div style="font-size:11px; color:var(--muted); display:flex; justify-content:space-between; margin-bottom:4px;">
+      <span>Cohésion (classes d'équiv.) :</span>
+      <strong id="val-clusters" style="color:#e2e8f0">1 groupe</strong>
+    </div>
+
+    <canvas id="chart-canvas" width="288" height="115"></canvas>
+    <div class="chart-legend">
+      <span style="color:#38bdf8">■ Polarisation</span>
+      <span id="chart-mode-label" style="color:#94a3b8">Temps réel</span>
+      <span style="color:#fb923c">■ Rotation</span>
+    </div>
+
+    <div id="env-stats" class="env-stats"></div>
+  </div>
+
+  <!-- Panneau Droit -->
+  <div id="hud-right" class="panel">
+
+    <div class="section-title">0. Environnement</div>
+    <select id="sel-biome">
+      <option value="none">Aucun — ciel vide (conforme à l'article)</option>
+      <option value="forest" selected>Forêt de collines (troncs = obstacles)</option>
+      <option value="lake">Lac &amp; rives (relief + eau)</option>
+      <option value="mountain">Montagnes &amp; rochers</option>
+      <option value="plain">Plaine &amp; acacias</option>
+    </select>
+    <div class="hint">Le relief et la végétation sont des obstacles : les oiseaux maintiennent une marge au-dessus du sol et évitent les troncs.</div>
+
+    <div class="section-title">Prédateur &amp; obstacles</div>
+    <div class="action-row">
+      <button id="btn-predator">🦅 Ajouter un faucon</button>
+      <button id="btn-obstacle">🧱 Ajouter un obstacle</button>
+    </div>
+    <div class="action-row">
+      <button id="btn-clear-obs" class="btn-warn">Retirer les obstacles ajoutés</button>
+    </div>
+    <div class="control-row" style="margin-top:8px;">
+      <div class="control-label"><span>Vitesse du faucon</span><span class="val" id="lbl-predspeed">4.6</span></div>
+      <input type="range" id="inp-predspeed" min="2" max="8" step="0.1" value="4.6" />
+    </div>
+    <div class="hint">Le faucon poursuit l'oiseau le plus proche. Les oiseaux qui le perçoivent fuient ; les autres suivent leurs voisins. Une capture retire un oiseau de la nuée.</div>
+
+    <div class="section-title">1. Comportements Collectifs (Fig. 3)</div>
+    <div class="preset-grid">
+      <button id="preset-swarm">A. Essaim (Swarm)</button>
+      <button id="preset-torus">B. Tore (Milling)</button>
+      <button id="preset-dynamic">C. Parallèle Dynamique</button>
+      <button id="preset-highly">D. Hautement Parallèle</button>
+    </div>
+    <div class="hint">Changer de régime sans réinitialiser conserve l'historique structurel du groupe.</div>
+
+    <div class="section-title">2. Mémoire Collective / Hystérésis (Fig. 4)</div>
+    <button id="btn-hysteresis" class="btn-warn" style="width:100%;">▶ Lancer le cycle d'Hystérésis (ro : 1 → 4.5 → 1)</button>
+    <div id="hysteresis-status" class="hint">Garde ra = 14 fixe. Lance l'environnement « Aucun », sans faucon ni obstacle.</div>
+
+    <div class="section-title">3. Paramètres du Modèle (Table 1)</div>
+
+    <div class="control-row">
+      <div class="control-label"><span>Individus (N)</span><span class="val" id="lbl-N">100</span></div>
+      <input type="range" id="inp-N" min="10" max="150" step="5" value="100" />
+    </div>
+    <div class="control-row">
+      <div class="control-label"><span>Zone de répulsion r<sub>r</sub> (zor)</span><span class="val" id="lbl-rr">1.0</span></div>
+      <input type="range" id="inp-rr" min="0.5" max="2.5" step="0.1" value="1.0" />
+    </div>
+    <div class="control-row">
+      <div class="control-label"><span>Largeur d'orientation Δr<sub>o</sub></span><span class="val" id="lbl-dro">5.0 (ro=6.0)</span></div>
+      <input type="range" id="inp-dro" min="0" max="15" step="0.25" value="5.0" />
+    </div>
+    <div class="control-row">
+      <div class="control-label"><span>Largeur d'attraction Δr<sub>a</sub></span><span class="val" id="lbl-dra">8.0 (ra=14.0)</span></div>
+      <input type="range" id="inp-dra" min="0" max="15" step="0.25" value="8.0" />
+    </div>
+    <div class="control-row">
+      <div class="control-label"><span>Champ de perception α (°)</span><span class="val" id="lbl-alpha">270°</span></div>
+      <input type="range" id="inp-alpha" min="200" max="360" step="5" value="270" />
+    </div>
+    <div class="control-row">
+      <div class="control-label"><span>Taux de rotation θ (°/s)</span><span class="val" id="lbl-theta">40°/s</span></div>
+      <input type="range" id="inp-theta" min="10" max="100" step="2" value="40" />
+    </div>
+    <div class="control-row">
+      <div class="control-label"><span>Vitesse s (unités/s)</span><span class="val" id="lbl-s">3.0</span></div>
+      <input type="range" id="inp-s" min="1" max="5" step="0.1" value="3.0" />
+    </div>
+    <div class="control-row">
+      <div class="control-label"><span>Erreur gaussienne σ (rad)</span><span class="val" id="lbl-sigma">0.05 rad</span></div>
+      <input type="range" id="inp-sigma" min="0" max="0.20" step="0.005" value="0.05" />
+    </div>
+
+    <div class="section-title">4. Tri Spatial — Différences Individuelles</div>
+    <select id="sel-sorting">
+      <option value="none">Aucune variation (groupe homogène)</option>
+      <option value="s">Vitesse individuelle (s)</option>
+      <option value="rr">Zone de répulsion (rr)</option>
+      <option value="theta">Taux de rotation (θ)</option>
+      <option value="ro">Zone d'orientation (ro)</option>
+      <option value="sigma">Erreur individuelle (σ)</option>
+    </select>
+    <div id="sorting-controls" style="display:none;">
+      <div class="control-row">
+        <div class="control-label"><span>Écart-type individuel (S.D.)</span><span class="val" id="lbl-sort-sd">0.15</span></div>
+        <input type="range" id="inp-sort-sd" min="0.02" max="0.50" step="0.01" value="0.15" />
+      </div>
+      <div class="gradient-bar"></div>
+      <div class="gradient-labels"><span>Faible (bleu)</span><span>Moyenne</span><span>Élevée (rouge)</span></div>
+    </div>
+
+    <div class="section-title">5. Simulation &amp; Aides Visuelles</div>
+    <div class="control-row">
+      <div class="control-label"><span>Vitesse d'exécution</span><span class="val" id="lbl-simspeed">2.0x</span></div>
+      <input type="range" id="inp-simspeed" min="0.5" max="10" step="0.5" value="2.0" />
+    </div>
+    <label class="checkbox-row"><input type="checkbox" id="chk-follow" checked /><span>Suivre la nuée avec la caméra</span></label>
+    <label class="checkbox-row"><input type="checkbox" id="chk-trails" checked /><span>Afficher les sillages de vol</span></label>
+    <label class="checkbox-row"><input type="checkbox" id="chk-plane" /><span>Afficher c<sub>group</sub>, d<sub>group</sub> et le plan frontal (Fig. 2)</span></label>
+    <label class="checkbox-row"><input type="checkbox" id="chk-zones" /><span>Afficher zor / zoo / zoa sur un oiseau (Fig. 1)</span></label>
+
+    <div class="action-row">
+      <button id="btn-pause">⏸ Pause</button>
+      <button id="btn-reset">↻ Réinitialiser la nuée</button>
+    </div>
+  </div>
+
+  <div id="help-footer" class="panel">
+    Clic gauche : orbiter &nbsp;|&nbsp; Molette : zoomer &nbsp;|&nbsp; Clic droit : déplacer la vue
+  </div>
+
+  <canvas id="three-canvas"></canvas>
+
+  <script type="module">
+    import * as THREE from 'three';
+    import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+
+    // ========================================================================
+    // 1. CONSTANTES
+    // ========================================================================
+    const TAU = 0.1;                    // pas de temps (Table 1)
+    const TWO_PI = Math.PI * 2;
+
+    // Extensions hors article (inspirées de la Discussion)
+    const R_OBS = 6.0;                  // rayon de détection des obstacles
+    const R_GROUND = 7.0;               // marge de détection du relief
+    const R_FEAR = 20.0;                // distance de détection du faucon
+    const URGENT_TURN = 2.5;            // facteur de rotation en urgence (fuite / évitement)
+    const PRED_TURN = 130;              // taux de rotation du faucon (°/s)
+    const PRED_CAPTURE_R = 1.4;         // distance de capture
+    const PRED_COOLDOWN = 30;           // pas (3 s) après une capture
+    const OBS_MAX = 40;                 // nombre maximal d'obstacles ajoutés
+
+    const WORLD_UP = new THREE.Vector3(0, 1, 0);
+    const ALT_UP = new THREE.Vector3(1, 0, 0);
+    const ZERO_VEC = new THREE.Vector3(0, 0, 0);
+
+    const params = {
+      N: 100,
+      rr: 1.0,
+      dro: 5.0,
+      dra: 8.0,
+      alpha: 270,
+      theta: 40,
+      s: 3.0,
+      sigma: 0.05,
+      predSpeed: 4.6,
+      sortParam: 'none',
+      sortSD: 0.15,
+      simSpeed: 2.0,
+      paused: false,
+      followGroup: true,
+      showTrails: true,
+      showGroupPlane: false,
+      showBirdZones: false
+    };
+
+    const hysteresis = {
+      active: false,
+      direction: 1,
+      roCurrent: 1.0,
+      stepsAtValue: 0,
+      stepsPerIncrement: 180,
+      upPoints: [],
+      downPoints: []
+    };
+
+    // ========================================================================
+    // 2. ÉTAT
+    // ========================================================================
+    const MAX_N = 150;
+    const posX = new Float64Array(MAX_N), posY = new Float64Array(MAX_N), posZ = new Float64Array(MAX_N);
+    const prevPosX = new Float64Array(MAX_N), prevPosY = new Float64Array(MAX_N), prevPosZ = new Float64Array(MAX_N);
+    const velX = new Float64Array(MAX_N), velY = new Float64Array(MAX_N), velZ = new Float64Array(MAX_N);
+    const prevVelX = new Float64Array(MAX_N), prevVelY = new Float64Array(MAX_N), prevVelZ = new Float64Array(MAX_N);
+    const nextVelX = new Float64Array(MAX_N), nextVelY = new Float64Array(MAX_N), nextVelZ = new Float64Array(MAX_N);
+    const alive = new Uint8Array(MAX_N);
+
+    const indivZScore = new Float64Array(MAX_N);
+    const indivPhase = new Float32Array(MAX_N);
+    const indivBank = new Float32Array(MAX_N);
+
+    let stepCount = 0;
+    let pGroup = 0, mGroup = 0;
+    let nAlive = 0, numClusters = 1, captures = 0;
+    let lastZoneIdx = -1;
+
+    const cGroup = new THREE.Vector3();
+    const prevCGroup = new THREE.Vector3();
+    const dGroup = new THREE.Vector3(0, 0, 1);
+    const cameraFollowTarget = new THREE.Vector3();
+
+    const timeHistory = [];
+    const MAX_HISTORY = 180;
+
+    // Faucon
+    const predator = { active: false, x: 0, y: 0, z: 0, px: 0, py: 0, pz: 0, vx: 1, vy: 0, vz: 0, cooldown: 0, phase: 0 };
+
+    // Environnement
+    let currentBiome = 'forest';
+    let seedOff = 0;
+    let envObstacles = [];     // décor (troncs, rochers)
+    let userObstacles = [];    // obstacles ajoutés par l'utilisateur
+    let obsFlat = new Float64Array(0); // [ax, ay, az, bx, by, bz, R] par obstacle
+    let obsCount = 0;
+
+    const BIOME_SETTINGS = {
+      none:     { sky: [0x0c2448, 0x1e4d7b, 0x7ca5c8, 0x182638], fog: null, spawnAlt: 20 },
+      forest:   { sky: [0x2a4f7a, 0x4f7fa8, 0xb9cbd6, 0x2b3a2a], fog: [0xaebfb5, 0.010], spawnAlt: 9 },
+      lake:     { sky: [0x2c6fa8, 0x5b9ccc, 0xdbe9f2, 0x3b6e8a], fog: [0xc9dde9, 0.0065], spawnAlt: 9 },
+      mountain: { sky: [0x1b3658, 0x406a95, 0xa9bcd0, 0x3c4a5a], fog: [0xb8c6d4, 0.006], spawnAlt: 14 },
+      plain:    { sky: [0x3c78b5, 0x7cb0d8, 0xf4e4b8, 0x8a7a4c], fog: [0xe9d9ae, 0.0045], spawnAlt: 10 }
+    };
+
+    // ========================================================================
+    // 3. BRUIT, MATHÉMATIQUES UTILITAIRES
+    // ========================================================================
+    function randomStandardNormal() {
+      let u1 = 0, u2 = 0;
+      while (u1 === 0) u1 = Math.random();
+      while (u2 === 0) u2 = Math.random();
+      return Math.sqrt(-2.0 * Math.log(u1)) * Math.cos(TWO_PI * u2);
+    }
+
+    // Vecteur unitaire tourné par un angle err dans un plan tangent aléatoire (gaussienne sphérique)
+    const _pert = new THREE.Vector3();
+    function perturbDirection(dx, dy, dz, err) {
+      let ux, uy, uz;
+      if (Math.abs(dx) < 0.9) { ux = 0; uy = -dz; uz = dy; }
+      else { ux = dz; uy = 0; uz = -dx; }
+      const ul = Math.hypot(ux, uy, uz);
+      ux /= ul; uy /= ul; uz /= ul;
+      const wx = dy * uz - dz * uy, wy = dz * ux - dx * uz, wz = dx * uy - dy * ux;
+      const phi = Math.random() * TWO_PI;
+      const cp = Math.cos(phi), sp = Math.sin(phi);
+      const tx = cp * ux + sp * wx, ty = cp * uy + sp * wy, tz = cp * uz + sp * wz;
+      const ce = Math.cos(err), se = Math.sin(err);
+      _pert.set(ce * dx + se * tx, ce * dy + se * ty, ce * dz + se * tz).normalize();
+      return _pert;
+    }
+
+    // Rotation limitée de v vers d (angle maximal maxRad) — résultat dans _turn
+    const _turn = new THREE.Vector3();
+    function turnLimited(vx, vy, vz, dx, dy, dz, maxRad) {
+      const dot = Math.max(-1, Math.min(1, vx * dx + vy * dy + vz * dz));
+      const ang = Math.acos(dot);
+      if (ang <= maxRad || ang < 1e-7) {
+        _turn.set(dx, dy, dz);
+        return _turn.normalize();
+      }
+      let px = dx - dot * vx, py = dy - dot * vy, pz = dz - dot * vz;
+      let pl = Math.hypot(px, py, pz);
+      if (pl < 1e-7) {
+        if (Math.abs(vx) < 0.9) { px = 0; py = -vz; pz = vy; }
+        else { px = vz; py = 0; pz = -vx; }
+        pl = Math.hypot(px, py, pz);
+      }
+      px /= pl; py /= pl; pz /= pl;
+      const c = Math.cos(maxRad), s = Math.sin(maxRad);
+      _turn.set(c * vx + s * px, c * vy + s * py, c * vz + s * pz);
+      return _turn.normalize();
+    }
+
+    // Paramètres individuels (avec variation gaussienne pour le tri spatial)
+    function getIndividualParams(i) {
+      let rr_i = params.rr;
+      let ro_i = params.rr + params.dro;
+      let ra_i = ro_i + params.dra;
+      let theta_i = params.theta;
+      let s_i = params.s;
+      let sigma_i = params.sigma;
+      const z = indivZScore[i];
+      if (params.sortParam === 's') {
+        s_i = Math.max(0.4, params.s + z * params.sortSD);
+      } else if (params.sortParam === 'rr') {
+        rr_i = Math.max(0.15, params.rr + z * params.sortSD);
+        ro_i = Math.max(rr_i, params.rr + params.dro);
+        ra_i = Math.max(ro_i, ro_i + params.dra);
+      } else if (params.sortParam === 'theta') {
+        theta_i = Math.max(2.0, params.theta + z * params.sortSD);
+      } else if (params.sortParam === 'ro') {
+        ro_i = Math.max(rr_i, (params.rr + params.dro) + z * params.sortSD);
+        ra_i = Math.max(ro_i, (params.rr + params.dro + params.dra));
+      } else if (params.sortParam === 'sigma') {
+        sigma_i = Math.max(0.0, params.sigma + z * params.sortSD);
+      }
+      return { rr_i, ro_i, ra_i, theta_i, s_i, sigma_i };
+    }
+
+    // ========================================================================
+    // 4. RELIEF (bruit fractal) — sert au sol, à la végétation et à l'eau
+    // ========================================================================
+    function hash2(x, z) {
+      const s = Math.sin(x * 127.1 + z * 311.7) * 43758.5453123;
+      return s - Math.floor(s);
+    }
+    function vnoise(x, z) {
+      const ix = Math.floor(x), iz = Math.floor(z);
+      const fx = x - ix, fz = z - iz;
+      const ux = fx * fx * (3 - 2 * fx), uz = fz * fz * (3 - 2 * fz);
+      const a = hash2(ix, iz), b = hash2(ix + 1, iz), c = hash2(ix, iz + 1), d = hash2(ix + 1, iz + 1);
+      return a + (b - a) * ux + (c - a) * uz + (a - b - c + d) * ux * uz;
+    }
+    function fbm(x, z) {
+      let amp = 0.5, f = 1, sum = 0, norm = 0;
+      for (let o = 0; o < 4; o++) {
+        sum += amp * vnoise(x * f, z * f);
+        norm += amp;
+        amp *= 0.5;
+        f *= 2.0;
+      }
+      return sum / norm;
+    }
+
+    // Altitude brute du terrain selon le biome courant
+    function groundRaw(x, z) {
+      if (currentBiome === 'none') return -1000;
+      const X = x + seedOff, Z = z + seedOff;
+      switch (currentBiome) {
+        case 'forest':   return -1 + 16 * Math.pow(fbm(X * 0.011, Z * 0.011), 1.5) + 2.5 * fbm(X * 0.06, Z * 0.06);
+        case 'lake':     return 3 + 9 * fbm(X * 0.014, Z * 0.014) + 2 * fbm(X * 0.07, Z * 0.07)
+                              - 15 * Math.exp(-(x * x + z * z) / (2 * 30 * 30));
+        case 'mountain': return 90 * Math.pow(fbm(X * 0.010, Z * 0.010), 2.0) + 6 * fbm(X * 0.07, Z * 0.07);
+        case 'plain':    return 2 + 4 * fbm(X * 0.007, Z * 0.007) + 1.2 * fbm(X * 0.05, Z * 0.05);
+      }
+      return 0;
+    }
+    // Surface effective (l'eau du lac fixe la surface à y = 0)
+    function groundH(x, z) {
+      const h = groundRaw(x, z);
+      return currentBiome === 'lake' ? Math.max(h, 0) : h;
+    }
+    function floorAt(x, z) {
+      return currentBiome === 'none' ? 0 : groundH(x, z);
+    }
+    const _gn = new THREE.Vector3();
+    function groundNormal(x, z) {
+      const e = 0.8;
+      const hx = (groundH(x + e, z) - groundH(x - e, z)) / (2 * e);
+      const hz = (groundH(x, z + e) - groundH(x, z - e)) / (2 * e);
+      return _gn.set(-hx, 1, -hz).normalize();
+    }
+
+    // ========================================================================
+    // 5. OBSTACLES (capsules verticales : sphère si A = B, cylindre sinon)
+    // ========================================================================
+    const _q = new THREE.Vector3();
+    // Distance du point p au segment [A, B] ; le point le plus proche est dans _q
+    function capsuleDist(px, py, pz, ax, ay, az, bx, by, bz) {
+      const abx = bx - ax, aby = by - ay, abz = bz - az;
+      const ab2 = abx * abx + aby * aby + abz * abz;
+      let t = 0;
+      if (ab2 > 1e-12) {
+        t = ((px - ax) * abx + (py - ay) * aby + (pz - az) * abz) / ab2;
+        if (t < 0) t = 0; else if (t > 1) t = 1;
+      }
+      _q.set(ax + abx * t, ay + aby * t, az + abz * t);
+      return Math.hypot(px - _q.x, py - _q.y, pz - _q.z);
+    }
+
+    function rebuildObstacleFlat() {
+      const all = envObstacles.concat(userObstacles);
+      obsCount = all.length;
+      obsFlat = new Float64Array(obsCount * 7);
+      for (let k = 0; k < obsCount; k++) {
+        const o = all[k], b = k * 7;
+        obsFlat[b] = o.ax; obsFlat[b + 1] = o.ay; obsFlat[b + 2] = o.az;
+        obsFlat[b + 3] = o.bx; obsFlat[b + 4] = o.by; obsFlat[b + 5] = o.bz;
+        obsFlat[b + 6] = o.R;
+      }
+    }
+
+    // Contrainte dure : hors des obstacles et au-dessus du sol
+    const _res = new THREE.Vector3();
+    function resolveEnvironment(px, py, pz) {
+      _res.set(px, py, pz);
+      for (let k = 0; k < obsCount; k++) {
+        const b = k * 7;
+        const R = obsFlat[b + 6];
+        const hdx = _res.x - obsFlat[b], hdz = _res.z - obsFlat[b + 2];
+        if (hdx * hdx + hdz * hdz > (R + 0.05) * (R + 0.05)) continue; // axes verticaux
+        const d = capsuleDist(_res.x, _res.y, _res.z,
+          obsFlat[b], obsFlat[b + 1], obsFlat[b + 2], obsFlat[b + 3], obsFlat[b + 4], obsFlat[b + 5]);
+        if (d < R + 0.05) {
+          let nx = 0, ny = 1, nz = 0;
+          if (d > 1e-6) { nx = (_res.x - _q.x) / d; ny = (_res.y - _q.y) / d; nz = (_res.z - _q.z) / d; }
+          const push = R + 0.05;
+          _res.set(_q.x + nx * push, _q.y + ny * push, _q.z + nz * push);
+        }
+      }
+      const gh = floorAt(_res.x, _res.z) + 0.6;
+      if (_res.y < gh) _res.y = gh;
+      return _res;
+    }
+
+    // ========================================================================
+    // 6. INITIALISATION DE LA NUÉE (Page 4)
+    // ========================================================================
+    function spawnBaseY() {
+      return currentBiome === 'none' ? BIOME_SETTINGS.none.spawnAlt : floorAt(0, 0) + BIOME_SETTINGS[currentBiome].spawnAlt;
+    }
+
+    function initFlock(redrawDeviates = true) {
+      const N = params.N;
+      const raBase = Math.max(1.5, params.rr + params.dro + params.dra);
+      const initRadius = Math.min(Math.max(2.5, 0.9 * Math.cbrt(N)), raBase * 0.55);
+      const baseY = spawnBaseY();
+
+      for (let i = 0; i < MAX_N; i++) {
+        if (redrawDeviates) indivZScore[i] = randomStandardNormal();
+        indivPhase[i] = Math.random() * TWO_PI;
+        indivBank[i] = 0;
+        alive[i] = i < N ? 1 : 0;
+
+        const u = Math.random();
+        const r = initRadius * Math.cbrt(u);
+        const cosPhi = 2 * Math.random() - 1;
+        const sinPhi = Math.sqrt(1 - cosPhi * cosPhi);
+        const az = Math.random() * TWO_PI;
+        posX[i] = r * sinPhi * Math.cos(az);
+        posY[i] = baseY + r * cosPhi;
+        posZ[i] = r * sinPhi * Math.sin(az);
+
+        const vc = 2 * Math.random() - 1;
+        const vs = Math.sqrt(1 - vc * vc);
+        const vaz = Math.random() * TWO_PI;
+        velX[i] = vs * Math.cos(vaz);
+        velY[i] = vs * Math.sin(vaz);
+        velZ[i] = vc;
+      }
+
+      // Chaque oiseau doit détecter au moins un voisin
+      const cosHalfAlpha = Math.cos((params.alpha * Math.PI) / 360.0);
+      for (let i = 0; i < N; i++) {
+        const pr = getIndividualParams(i);
+        let detects = false;
+        for (let j = 0; j < N; j++) {
+          if (i === j) continue;
+          const dx = posX[j] - posX[i], dy = posY[j] - posY[i], dz = posZ[j] - posZ[i];
+          const d = Math.hypot(dx, dy, dz);
+          if (d < pr.rr_i) { detects = true; break; }
+          if (d <= pr.ra_i && d > 1e-8) {
+            const dot = (velX[i] * dx + velY[i] * dy + velZ[i] * dz) / d;
+            if (dot >= cosHalfAlpha) { detects = true; break; }
+          }
+        }
+        if (!detects && N > 1) {
+          const ref = (i + 1) % N;
+          const dist = Math.min(pr.rr_i * 1.2, pr.ra_i * 0.5);
+          posX[i] = posX[ref] - velX[i] * dist;
+          posY[i] = posY[ref] - velY[i] * dist;
+          posZ[i] = posZ[ref] - velZ[i] * dist;
+        }
+      }
+
+      // Aucun oiseau ne doit être dans un obstacle ou sous le sol
+      for (let i = 0; i < N; i++) {
+        const r = resolveEnvironment(posX[i], posY[i], posZ[i]);
+        posX[i] = r.x; posY[i] = r.y; posZ[i] = r.z;
+      }
+      for (let i = 0; i < MAX_N; i++) {
+        prevPosX[i] = posX[i]; prevPosY[i] = posY[i]; prevPosZ[i] = posZ[i];
+        prevVelX[i] = velX[i]; prevVelY[i] = velY[i]; prevVelZ[i] = velZ[i];
+      }
+
+      captures = 0;
+      stepCount = 0;
+      timeHistory.length = 0;
+      computeGlobalMetrics();
+      prevCGroup.copy(cGroup);
+      cameraFollowTarget.copy(cGroup);
+      resetTrails();
+      updateBirdColors();
+      if (predator.active) spawnPredator();
+    }
+
+    // ========================================================================
+    // 7. UN PAS DE TEMPS (t -> t + τ)
+    // ========================================================================
+    function stepSimulation() {
+      const N = params.N;
+      const cosHalfAlpha = Math.cos((params.alpha * Math.PI) / 360.0);
+
+      for (let i = 0; i < N; i++) {
+        prevPosX[i] = posX[i]; prevPosY[i] = posY[i]; prevPosZ[i] = posZ[i];
+        prevVelX[i] = velX[i]; prevVelY[i] = velY[i]; prevVelZ[i] = velZ[i];
+      }
+      prevCGroup.copy(cGroup);
+
+      // 1) Direction désirée et rotation de chaque oiseau
+      for (let i = 0; i < N; i++) {
+        if (!alive[i]) {
+          nextVelX[i] = velX[i]; nextVelY[i] = velY[i]; nextVelZ[i] = velZ[i];
+          continue;
+        }
+        const pr = getIndividualParams(i);
+        const xi = posX[i], yi = posY[i], zi = posZ[i];
+        const vxi = velX[i], vyi = velY[i], vzi = velZ[i];
+        let diX = 0, diY = 0, diZ = 0;
+        let urgent = false;
+
+        // ---- Niveau 0 : obstacles et relief ----
+        let oX = 0, oY = 0, oZ = 0, nO = 0;
+        for (let k = 0; k < obsCount; k++) {
+          const b = k * 7;
+          const R = obsFlat[b + 6];
+          const hdx = xi - obsFlat[b], hdz = zi - obsFlat[b + 2];
+          const lim = R_OBS + R;
+          if (hdx * hdx + hdz * hdz > lim * lim) continue;
+          const dist = capsuleDist(xi, yi, zi,
+            obsFlat[b], obsFlat[b + 1], obsFlat[b + 2], obsFlat[b + 3], obsFlat[b + 4], obsFlat[b + 5]);
+          const gap = dist - R;
+          if (gap >= R_OBS) continue;
+          // Normale sortante n = (c_i - q) / |c_i - q|
+          let nX = 0, nY = 1, nZ = 0;
+          if (dist > 1e-6) { nX = (xi - _q.x) / dist; nY = (yi - _q.y) / dist; nZ = (zi - _q.z) / dist; }
+          // Visible si dans le cône de perception, ou déjà à moins de rr
+          const cosTo = -(vxi * nX + vyi * nY + vzi * nZ);
+          if (gap >= pr.rr_i && cosTo < cosHalfAlpha) continue;
+          const w = Math.min(1, Math.max(0, (R_OBS - gap) / R_OBS));
+          oX += nX * w; oY += nY * w; oZ += nZ * w; nO++;
+        }
+        // Relief : marge au-dessus du sol
+        const gapG = yi - groundH(xi, zi);
+        if (gapG < R_GROUND) {
+          const n = groundNormal(xi, zi);
+          const w = Math.min(1, (R_GROUND - gapG) / R_GROUND);
+          oX += n.x * w; oY += n.y * w; oZ += n.z * w; nO++;
+        }
+
+        if (nO > 0) {
+          diX = oX; diY = oY; diZ = oZ;
+          urgent = true;
+        } else {
+          // ---- Niveau 1 : fuite face au faucon ----
+          let fled = false;
+          if (predator.active) {
+            const dpx = predator.x - xi, dpy = predator.y - yi, dpz = predator.z - zi;
+            const dd = Math.hypot(dpx, dpy, dpz);
+            if (dd < R_FEAR && dd > 1e-9) {
+              const cosP = (vxi * dpx + vyi * dpy + vzi * dpz) / dd;
+              if (cosP >= cosHalfAlpha) {
+                diX = -dpx / dd; diY = -dpy / dd; diZ = -dpz / dd;
+                fled = true;
+                urgent = true;
+              }
+            }
+          }
+
+          // ---- Niveaux 2-3 : règles de Couzin (zor, zoo, zoa) ----
+          if (!fled) {
+            let nr = 0, no = 0, na = 0;
+            let drX = 0, drY = 0, drZ = 0;
+            let doX = 0, doY = 0, doZ = 0;
+            let daX = 0, daY = 0, daZ = 0;
+
+            for (let j = 0; j < N; j++) {
+              if (i === j || !alive[j]) continue;
+              const dx = posX[j] - xi, dy = posY[j] - yi, dz = posZ[j] - zi;
+              const distSq = dx * dx + dy * dy + dz * dz;
+              if (distSq > pr.ra_i * pr.ra_i) continue;
+              const dist = Math.sqrt(distSq);
+              let rijX, rijY, rijZ;
+              if (dist > 1e-9) { rijX = dx / dist; rijY = dy / dist; rijZ = dz / dist; }
+              else { rijX = 1; rijY = 0; rijZ = 0; }
+
+              if (dist < pr.rr_i) {
+                // Éq. (1) : zone de répulsion, sphère complète
+                drX -= rijX; drY -= rijY; drZ -= rijZ;
+                nr++;
+              } else if (nr === 0) {
+                // Champ de perception α (cône aveugle arrière)
+                const cosAngle = vxi * rijX + vyi * rijY + vzi * rijZ;
+                if (cosAngle >= cosHalfAlpha) {
+                  if (dist < pr.ro_i) {
+                    // Éq. (2) : zone d'orientation
+                    doX += velX[j]; doY += velY[j]; doZ += velZ[j];
+                    no++;
+                  } else {
+                    // Éq. (3) : zone d'attraction
+                    daX += rijX; daY += rijY; daZ += rijZ;
+                    na++;
+                  }
+                }
+              }
+            }
+
+            if (nr > 0) {
+              diX = drX; diY = drY; diZ = drZ;
+            } else if (no > 0 && na === 0) {
+              diX = doX; diY = doY; diZ = doZ;
+            } else if (na > 0 && no === 0) {
+              diX = daX; diY = daY; diZ = daZ;
+            } else if (no > 0 && na > 0) {
+              diX = 0.5 * (doX + daX); diY = 0.5 * (doY + daY); diZ = 0.5 * (doZ + daZ);
+            } else {
+              diX = vxi; diY = vyi; diZ = vzi;
+            }
+          }
+        }
+
+        // Normalisation (vecteur nul -> on garde v_i(t))
+        const nrm = Math.hypot(diX, diY, diZ);
+        if (nrm < 1e-8) { diX = vxi; diY = vyi; diZ = vzi; }
+        else { diX /= nrm; diY /= nrm; diZ /= nrm; }
+
+        // Erreur stochastique (gaussienne sphérique d'écart-type σ)
+        if (pr.sigma_i > 0) {
+          const p = perturbDirection(diX, diY, diZ, randomStandardNormal() * pr.sigma_i);
+          diX = p.x; diY = p.y; diZ = p.z;
+        }
+
+        // Rotation maximale θτ (multipliée en urgence)
+        const turnDeg = pr.theta_i * (urgent ? URGENT_TURN : 1);
+        const maxRad = turnDeg * Math.PI / 180 * TAU;
+        const t = turnLimited(vxi, vyi, vzi, diX, diY, diZ, maxRad);
+        nextVelX[i] = t.x; nextVelY[i] = t.y; nextVelZ[i] = t.z;
+      }
+
+      // 2) Intégration : c_i(t+τ) = c_i(t) + v_i(t+τ) s_i τ, puis contraintes environnementales
+      for (let i = 0; i < N; i++) {
+        if (!alive[i]) continue;
+        const pr = getIndividualParams(i);
+        velX[i] = nextVelX[i]; velY[i] = nextVelY[i]; velZ[i] = nextVelZ[i];
+        posX[i] += velX[i] * pr.s_i * TAU;
+        posY[i] += velY[i] * pr.s_i * TAU;
+        posZ[i] += velZ[i] * pr.s_i * TAU;
+        const r = resolveEnvironment(posX[i], posY[i], posZ[i]);
+        posX[i] = r.x; posY[i] = r.y; posZ[i] = r.z;
+      }
+
+      stepPredator();
+
+      stepCount++;
+      computeGlobalMetrics();
+      pushTrailPositions();
+
+      if (hysteresis.active) {
+        updateHysteresisStep();
+      } else {
+        timeHistory.push({ p: pGroup, m: mGroup });
+        if (timeHistory.length > MAX_HISTORY) timeHistory.shift();
+      }
+    }
+
+    // ========================================================================
+    // 8. FAUCON
+    // ========================================================================
+    function spawnPredator() {
+      const ang = Math.random() * TWO_PI;
+      predator.x = cGroup.x + Math.cos(ang) * 60;
+      predator.z = cGroup.z + Math.sin(ang) * 60;
+      predator.y = Math.max(cGroup.y + 8, floorAt(predator.x, predator.z) + 10);
+      predator.px = predator.x; predator.py = predator.y; predator.pz = predator.z;
+      predator.vx = -Math.cos(ang); predator.vy = -0.05; predator.vz = -Math.sin(ang);
+      const n = Math.hypot(predator.vx, predator.vy, predator.vz);
+      predator.vx /= n; predator.vy /= n; predator.vz /= n;
+      predator.cooldown = 0;
+      predator.active = true;
+    }
+
+    function captureBird(i) {
+      alive[i] = 0;
+      captures++;
+      spawnFeathers(posX[i], posY[i], posZ[i]);
+      predator.cooldown = PRED_COOLDOWN;
+    }
+
+    function stepPredator() {
+      if (!predator.active) return;
+      const N = params.N;
+      predator.px = predator.x; predator.py = predator.y; predator.pz = predator.z;
+      const px = predator.x, py = predator.y, pz = predator.z;
+      let target = -1;
+      let dX, dY, dZ;
+
+      if (predator.cooldown > 0) {
+        // Repos : s'éloigne et remonte
+        predator.cooldown--;
+        dX = px - cGroup.x; dY = (py - cGroup.y) + 5; dZ = pz - cGroup.z;
+      } else {
+        // Cible : oiseau vivant le plus proche
+        let best = Infinity;
+        for (let i = 0; i < N; i++) {
+          if (!alive[i]) continue;
+          const d2 = (posX[i] - px) ** 2 + (posY[i] - py) ** 2 + (posZ[i] - pz) ** 2;
+          if (d2 < best) { best = d2; target = i; }
+        }
+        if (target >= 0) { dX = posX[target] - px; dY = posY[target] - py; dZ = posZ[target] - pz; }
+        else { dX = cGroup.x - px; dY = cGroup.y - py; dZ = cGroup.z - pz; }
+      }
+      const nn = Math.hypot(dX, dY, dZ) || 1;
+      dX /= nn; dY /= nn; dZ /= nn;
+
+      const t = turnLimited(predator.vx, predator.vy, predator.vz, dX, dY, dZ, PRED_TURN * Math.PI / 180 * TAU);
+      predator.vx = t.x; predator.vy = t.y; predator.vz = t.z;
+
+      predator.x += predator.vx * params.predSpeed * TAU;
+      predator.y += predator.vy * params.predSpeed * TAU;
+      predator.z += predator.vz * params.predSpeed * TAU;
+      const r = resolveEnvironment(predator.x, predator.y, predator.z);
+      predator.x = r.x; predator.y = r.y; predator.z = r.z;
+
+      if (target >= 0 && predator.cooldown === 0) {
+        const d = Math.hypot(posX[target] - predator.x, posY[target] - predator.y, posZ[target] - predator.z);
+        if (d < PRED_CAPTURE_R) captureBird(target);
+      }
+    }
+
+    // ========================================================================
+    // 9. MÉTRIQUES GLOBALES (Éq. 4, 5, 6, 7) & CLASSES D'ÉQUIVALENCE
+    // ========================================================================
+    function computeGlobalMetrics() {
+      const N = params.N;
+      let n = 0, cx = 0, cy = 0, cz = 0, sx = 0, sy = 0, sz = 0;
+      for (let i = 0; i < N; i++) {
+        if (!alive[i]) continue;
+        n++;
+        cx += posX[i]; cy += posY[i]; cz += posZ[i];
+        sx += velX[i]; sy += velY[i]; sz += velZ[i];
+      }
+      nAlive = n;
+      if (n === 0) { pGroup = 0; mGroup = 0; numClusters = 0; return; }
+
+      cx /= n; cy /= n; cz /= n;
+      cGroup.set(cx, cy, cz);
+      dGroup.set(sx / n, sy / n, sz / n);
+
+      // Éq. (4) : p_group = |(1/N) Σ v_i|
+      pGroup = dGroup.length();
+
+      // Éq. (5) : m_group = (1/N) |Σ r_ic × v_i| avec r_ic unitaire -> [0, 1]
+      let mx = 0, my = 0, mz = 0;
+      for (let i = 0; i < N; i++) {
+        if (!alive[i]) continue;
+        let rx = posX[i] - cx, ry = posY[i] - cy, rz = posZ[i] - cz;
+        const rl = Math.hypot(rx, ry, rz);
+        if (rl > 1e-8) {
+          rx /= rl; ry /= rl; rz /= rl;
+          mx += ry * velZ[i] - rz * velY[i];
+          my += rz * velX[i] - rx * velZ[i];
+          mz += rx * velY[i] - ry * velX[i];
+        }
+      }
+      mGroup = Math.hypot(mx, my, mz) / n;
+
+      if (stepCount % 5 === 0 || stepCount <= 1) computeEquivalenceClasses();
+      else cameraFollowTarget.copy(cGroup);
+    }
+
+    const visited = new Uint8Array(MAX_N);
+    function computeEquivalenceClasses() {
+      const N = params.N;
+      const cosHalfAlpha = Math.cos((params.alpha * Math.PI) / 360.0);
+      visited.fill(0);
+      for (let i = 0; i < N; i++) if (!alive[i]) visited[i] = 1;
+
+      let clusters = 0;
+      let largest = [];
+      for (let start = 0; start < N; start++) {
+        if (visited[start]) continue;
+        clusters++;
+        const queue = [start];
+        visited[start] = 1;
+        const members = [start];
+        while (queue.length > 0) {
+          const u = queue.pop();
+          const pu = getIndividualParams(u);
+          for (let v = 0; v < N; v++) {
+            if (visited[v]) continue;
+            const dx = posX[v] - posX[u], dy = posY[v] - posY[u], dz = posZ[v] - posZ[u];
+            const d = Math.hypot(dx, dy, dz);
+            const pv = getIndividualParams(v);
+            let connected = d < Math.max(pu.rr_i, pv.rr_i);
+            if (!connected && d > 1e-8) {
+              const dotU = (velX[u] * dx + velY[u] * dy + velZ[u] * dz) / d;
+              const dotV = -(velX[v] * dx + velY[v] * dy + velZ[v] * dz) / d;
+              if ((d <= pu.ra_i && dotU >= cosHalfAlpha) || (d <= pv.ra_i && dotV >= cosHalfAlpha)) connected = true;
+            }
+            if (connected) { visited[v] = 1; queue.push(v); members.push(v); }
+          }
+        }
+        if (members.length > largest.length) largest = members;
+      }
+
+      numClusters = clusters;
+      if (clusters > 1 && largest.length > 0) {
+        let lx = 0, ly = 0, lz = 0;
+        for (const idx of largest) { lx += posX[idx]; ly += posY[idx]; lz += posZ[idx]; }
+        cameraFollowTarget.set(lx / largest.length, ly / largest.length, lz / largest.length);
+      } else {
+        cameraFollowTarget.copy(cGroup);
+      }
+    }
+
+    // ========================================================================
+    // 10. SCÈNE THREE.JS : RENDU, CIEL, LUMIÈRES, CAMÉRA
+    // ========================================================================
+    const canvas = document.getElementById('three-canvas');
+    const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+    renderer.setSize(window.innerWidth, window.innerHeight);
+    renderer.toneMapping = THREE.ACESFilmicToneMapping;
+    renderer.toneMappingExposure = 1.05;
+
+    const scene = new THREE.Scene();
+
+    const skyMat = new THREE.ShaderMaterial({
+      side: THREE.BackSide,
+      depthWrite: false,
+      uniforms: {
+        topColor: { value: new THREE.Color(0x0c2448) },
+        midColor: { value: new THREE.Color(0x1e4d7b) },
+        horizonColor: { value: new THREE.Color(0x7ca5c8) },
+        bottomColor: { value: new THREE.Color(0x182638) }
+      },
+      vertexShader: `
+        varying vec3 vWorldDir;
+        void main() {
+          vWorldDir = normalize(position);
+          gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+        }
+      `,
+      fragmentShader: `
+        uniform vec3 topColor; uniform vec3 midColor; uniform vec3 horizonColor; uniform vec3 bottomColor;
+        varying vec3 vWorldDir;
+        void main() {
+          float h = vWorldDir.y;
+          vec3 col;
+          if (h >= 0.0) {
+            col = mix(horizonColor, midColor, smoothstep(0.0, 0.35, h));
+            col = mix(col, topColor, smoothstep(0.35, 0.9, h));
+          } else {
+            col = mix(horizonColor, bottomColor, smoothstep(0.0, -0.45, h));
+          }
+          gl_FragColor = vec4(col, 1.0);
+        }
+      `
+    });
+    const skyDome = new THREE.Mesh(new THREE.SphereGeometry(800, 32, 24), skyMat);
+    scene.add(skyDome);
+
+    const camera = new THREE.PerspectiveCamera(50, window.innerWidth / window.innerHeight, 0.2, 1500);
+    camera.position.set(18, 14, 22);
+
+    const controls = new OrbitControls(camera, renderer.domElement);
+    controls.enableDamping = true;
+    controls.dampingFactor = 0.07;
+    controls.minDistance = 4;
+    controls.maxDistance = 220;
+
+    const hemiLight = new THREE.HemisphereLight(0xdbeafe, 0x334155, 1.15);
+    scene.add(hemiLight);
+    const sunLight = new THREE.DirectionalLight(0xfff7ed, 1.8);
+    sunLight.position.set(35, 60, 25);
+    scene.add(sunLight);
+
+    // Particules d'air (perception de la vitesse s)
+    const DUST_COUNT = 700;
+    const DUST_BOX = 90;
+    const dustPositions = new Float32Array(DUST_COUNT * 3);
+    for (let i = 0; i < DUST_COUNT * 3; i++) dustPositions[i] = (Math.random() - 0.5) * DUST_BOX;
+    const dustGeo = new THREE.BufferGeometry();
+    dustGeo.setAttribute('position', new THREE.BufferAttribute(dustPositions, 3));
+    const dustPoints = new THREE.Points(dustGeo, new THREE.PointsMaterial({ color: 0xe0f2fe, size: 0.22, transparent: true, opacity: 0.4 }));
+    dustPoints.frustumCulled = false;
+    scene.add(dustPoints);
+
+    // ========================================================================
+    // 11. MODÈLES D'OISEAUX ET DU FAUCON
+    // ========================================================================
+    function createBirdBodyGeometry() {
+      const geo = new THREE.BufferGeometry();
+      const v = new Float32Array([
+        0, 0.01, 0.38, -0.05, 0.04, 0.16, 0.05, 0.04, 0.16,
+        0, 0.01, 0.38, 0.05, 0.04, 0.16, 0.00, -0.05, 0.16,
+        0, 0.01, 0.38, 0.00, -0.05, 0.16, -0.05, 0.04, 0.16,
+        -0.05, 0.04, 0.16, -0.065, 0.045, -0.08, 0.065, 0.045, -0.08,
+        -0.05, 0.04, 0.16, 0.065, 0.045, -0.08, 0.05, 0.04, 0.16,
+        0.05, 0.04, 0.16, 0.065, 0.045, -0.08, 0.00, -0.06, -0.06,
+        0.05, 0.04, 0.16, 0.00, -0.06, -0.06, 0.00, -0.05, 0.16,
+        -0.05, 0.04, 0.16, 0.00, -0.05, 0.16, 0.00, -0.06, -0.06,
+        -0.05, 0.04, 0.16, 0.00, -0.06, -0.06, -0.065, 0.045, -0.08,
+        -0.065, 0.045, -0.08, 0.00, 0.015, -0.24, 0.065, 0.045, -0.08,
+        0.065, 0.045, -0.08, 0.00, 0.015, -0.24, 0.00, -0.06, -0.06,
+        -0.065, 0.045, -0.08, 0.00, -0.06, -0.06, 0.00, 0.015, -0.24,
+        0.00, 0.015, -0.20, -0.11, 0.025, -0.38, 0.00, 0.02, -0.33,
+        0.00, 0.015, -0.20, 0.00, 0.02, -0.33, 0.11, 0.025, -0.38,
+        0.00, 0.015, -0.20, 0.00, 0.02, -0.33, -0.11, 0.025, -0.38,
+        0.00, 0.015, -0.20, 0.11, 0.025, -0.38, 0.00, 0.02, -0.33
+      ]);
+      geo.setAttribute('position', new THREE.BufferAttribute(v, 3));
+      geo.computeVertexNormals();
+      return geo;
+    }
+
+    function createWingGeometry(sign) {
+      const s = sign;
+      const pts = [
+        [0.03 * s, 0.03, 0.12], [0.22 * s, 0.04, 0.04], [0.03 * s, 0.02, -0.10],
+        [0.03 * s, 0.02, -0.10], [0.22 * s, 0.04, 0.04], [0.19 * s, 0.02, -0.12],
+        [0.22 * s, 0.04, 0.04], [0.44 * s, 0.01, -0.14], [0.19 * s, 0.02, -0.12],
+        [0.03 * s, 0.025, 0.12], [0.03 * s, 0.015, -0.10], [0.22 * s, 0.035, 0.04],
+        [0.03 * s, 0.015, -0.10], [0.19 * s, 0.015, -0.12], [0.22 * s, 0.035, 0.04],
+        [0.22 * s, 0.035, 0.04], [0.19 * s, 0.015, -0.12], [0.44 * s, 0.005, -0.14]
+      ];
+      const arr = new Float32Array(pts.length * 3);
+      pts.forEach((p, i) => { arr[i * 3] = p[0]; arr[i * 3 + 1] = p[1]; arr[i * 3 + 2] = p[2]; });
+      const geo = new THREE.BufferGeometry();
+      geo.setAttribute('position', new THREE.BufferAttribute(arr, 3));
+      geo.computeVertexNormals();
+      return geo;
+    }
+
+    const birdMat = new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.45, metalness: 0.08 });
+    const bodyInstanced = new THREE.InstancedMesh(createBirdBodyGeometry(), birdMat, MAX_N);
+    const wingRInstanced = new THREE.InstancedMesh(createWingGeometry(1), birdMat, MAX_N);
+    const wingLInstanced = new THREE.InstancedMesh(createWingGeometry(-1), birdMat, MAX_N);
+    [bodyInstanced, wingRInstanced, wingLInstanced].forEach(m => { m.frustumCulled = false; scene.add(m); });
+
+    // Faucon : plus grand, plumage sombre
+    const predGroup = new THREE.Group();
+    predGroup.visible = false;
+    const hawkMat = new THREE.MeshStandardMaterial({ color: 0x4a3322, roughness: 0.55 });
+    const hawkBody = new THREE.InstancedMesh(createBirdBodyGeometry(), hawkMat, 1);
+    const hawkWingR = new THREE.InstancedMesh(createWingGeometry(1), hawkMat, 1);
+    const hawkWingL = new THREE.InstancedMesh(createWingGeometry(-1), hawkMat, 1);
+    [hawkBody, hawkWingR, hawkWingL].forEach(m => { m.frustumCulled = false; predGroup.add(m); });
+    scene.add(predGroup);
+
+    const zeroMatrix = new THREE.Matrix4().makeScale(0, 0, 0);
+    const _rot = new THREE.Matrix4(), _roll = new THREE.Matrix4(), _body = new THREE.Matrix4();
+    const _scale = new THREE.Matrix4(), _wm = new THREE.Matrix4(), _wRot = new THREE.Matrix4();
+
+    // Écrit la matrice d'un oiseau (corps + ailes) : +Z = direction de vol
+    function writeBirdMatrices(body, wr, wl, idx, px, py, pz, dir, bank, flap, scale) {
+      const upRef = Math.abs(dir.y) > 0.98 ? ALT_UP : WORLD_UP;
+      _rot.lookAt(dir, ZERO_VEC, upRef);
+      _roll.makeRotationZ(bank);
+      _body.multiplyMatrices(_rot, _roll);
+      if (scale !== 1) { _scale.makeScale(scale, scale, scale); _body.multiply(_scale); }
+      _body.setPosition(px, py, pz);
+      body.setMatrixAt(idx, _body);
+
+      _wRot.makeRotationZ(flap);
+      _wm.multiplyMatrices(_body, _wRot);
+      wr.setMatrixAt(idx, _wm);
+      _wRot.makeRotationZ(-flap);
+      _wm.multiplyMatrices(_body, _wRot);
+      wl.setMatrixAt(idx, _wm);
+    }
+
+    const sortColorA = new THREE.Color(0x2563eb), sortColorB = new THREE.Color(0x06b6d4);
+    const sortColorC = new THREE.Color(0xfde047), sortColorD = new THREE.Color(0xef4444);
+    function valueToSortColor(t01, target) {
+      const t = Math.max(0, Math.min(1, t01));
+      if (t < 0.33) target.copy(sortColorA).lerp(sortColorB, t / 0.33);
+      else if (t < 0.66) target.copy(sortColorB).lerp(sortColorC, (t - 0.33) / 0.33);
+      else target.copy(sortColorC).lerp(sortColorD, (t - 0.66) / 0.34);
+      return target;
+    }
+
+    function updateBirdColors() {
+      const tmp = new THREE.Color();
+      for (let i = 0; i < MAX_N; i++) {
+        if (params.showBirdZones && i === lastZoneIdx) tmp.setHex(0xf43f5e);
+        else if (params.sortParam === 'none') {
+          const shade = 0.82 + 0.16 * (0.5 + 0.5 * Math.sin(i * 2.1));
+          tmp.setRGB(shade * 0.92, shade * 0.95, shade);
+        } else {
+          valueToSortColor((indivZScore[i] + 2.2) / 4.4, tmp);
+        }
+        bodyInstanced.setColorAt(i, tmp);
+        wingRInstanced.setColorAt(i, tmp);
+        wingLInstanced.setColorAt(i, tmp);
+      }
+      bodyInstanced.instanceColor.needsUpdate = true;
+      wingRInstanced.instanceColor.needsUpdate = true;
+      wingLInstanced.instanceColor.needsUpdate = true;
+    }
+
+    // ========================================================================
+    // 12. AIDES VISUELLES : SILLAGES, PLAN FRONTAL, ZONES, PLUMES
+    // ========================================================================
+    const TRAIL_LEN = 16;
+    const trailHistory = new Float32Array(MAX_N * TRAIL_LEN * 3);
+    const trailSegmentsPos = new Float32Array(MAX_N * (TRAIL_LEN - 1) * 2 * 3);
+    const trailSegmentsCol = new Float32Array(MAX_N * (TRAIL_LEN - 1) * 2 * 3);
+    const trailGeo = new THREE.BufferGeometry();
+    trailGeo.setAttribute('position', new THREE.BufferAttribute(trailSegmentsPos, 3));
+    trailGeo.setAttribute('color', new THREE.BufferAttribute(trailSegmentsCol, 3));
+    const trailLines = new THREE.LineSegments(trailGeo, new THREE.LineBasicMaterial({ vertexColors: true, transparent: true, opacity: 0.42 }));
+    trailLines.frustumCulled = false;
+    scene.add(trailLines);
+
+    function resetTrails() {
+      for (let i = 0; i < MAX_N; i++) {
+        for (let k = 0; k < TRAIL_LEN; k++) {
+          const b = (i * TRAIL_LEN + k) * 3;
+          trailHistory[b] = posX[i]; trailHistory[b + 1] = posY[i]; trailHistory[b + 2] = posZ[i];
+        }
+      }
+    }
+
+    function pushTrailPositions() {
+      const N = params.N;
+      for (let i = 0; i < N; i++) {
+        for (let k = TRAIL_LEN - 1; k > 0; k--) {
+          const dst = (i * TRAIL_LEN + k) * 3, src = (i * TRAIL_LEN + (k - 1)) * 3;
+          trailHistory[dst] = trailHistory[src];
+          trailHistory[dst + 1] = trailHistory[src + 1];
+          trailHistory[dst + 2] = trailHistory[src + 2];
+        }
+        const head = i * TRAIL_LEN * 3;
+        trailHistory[head] = posX[i]; trailHistory[head + 1] = posY[i]; trailHistory[head + 2] = posZ[i];
+      }
+      if (!params.showTrails) return;
+
+      let ptr = 0;
+      const tmpC = new THREE.Color();
+      for (let i = 0; i < N; i++) {
+        const isAlive = alive[i] === 1;
+        if (params.sortParam === 'none') tmpC.setHex(0x7dd3fc);
+        else valueToSortColor((indivZScore[i] + 2.2) / 4.4, tmpC);
+        for (let k = 0; k < TRAIL_LEN - 1; k++) {
+          const a = (i * TRAIL_LEN + k) * 3;
+          const b = isAlive ? (i * TRAIL_LEN + k + 1) * 3 : a; // oiseau capturé : segment nul
+          const fadeA = isAlive ? 1.0 - k / TRAIL_LEN : 0;
+          const fadeB = isAlive ? 1.0 - (k + 1) / TRAIL_LEN : 0;
+          trailSegmentsPos[ptr] = trailHistory[a]; trailSegmentsPos[ptr + 1] = trailHistory[a + 1]; trailSegmentsPos[ptr + 2] = trailHistory[a + 2];
+          trailSegmentsCol[ptr] = tmpC.r * fadeA; trailSegmentsCol[ptr + 1] = tmpC.g * fadeA; trailSegmentsCol[ptr + 2] = tmpC.b * fadeA;
+          ptr += 3;
+          trailSegmentsPos[ptr] = trailHistory[b]; trailSegmentsPos[ptr + 1] = trailHistory[b + 1]; trailSegmentsPos[ptr + 2] = trailHistory[b + 2];
+          trailSegmentsCol[ptr] = tmpC.r * fadeB; trailSegmentsCol[ptr + 1] = tmpC.g * fadeB; trailSegmentsCol[ptr + 2] = tmpC.b * fadeB;
+          ptr += 3;
+        }
+      }
+      trailGeo.setDrawRange(0, ptr / 3);
+      trailGeo.attributes.position.needsUpdate = true;
+      trailGeo.attributes.color.needsUpdate = true;
+    }
+
+    // Figure 2 : c_group, d_group et plan frontal
+    const groupPlaneGroup = new THREE.Group();
+    groupPlaneGroup.visible = false;
+    const cSphere = new THREE.Mesh(new THREE.SphereGeometry(0.32, 16, 16), new THREE.MeshBasicMaterial({ color: 0xfacc15 }));
+    const planeMesh = new THREE.Mesh(new THREE.PlaneGeometry(18, 18),
+      new THREE.MeshBasicMaterial({ color: 0xfacc15, transparent: true, opacity: 0.14, side: THREE.DoubleSide, depthWrite: false }));
+    const planeBorder = new THREE.LineSegments(new THREE.EdgesGeometry(new THREE.PlaneGeometry(18, 18)),
+      new THREE.LineBasicMaterial({ color: 0xfde047, transparent: true, opacity: 0.5 }));
+    const dArrow = new THREE.ArrowHelper(new THREE.Vector3(0, 0, 1), new THREE.Vector3(), 6, 0xfacc15, 1.1, 0.6);
+    groupPlaneGroup.add(cSphere, planeMesh, planeBorder, dArrow);
+    scene.add(groupPlaneGroup);
+
+    // Figure 1 : zor, zoo, zoa et angle mort
+    const birdZonesGroup = new THREE.Group();
+    birdZonesGroup.visible = false;
+    const sphereWireGeo = new THREE.SphereGeometry(1, 20, 14);
+    const zorMesh = new THREE.Mesh(sphereWireGeo, new THREE.MeshBasicMaterial({ color: 0xf43f5e, wireframe: true, transparent: true, opacity: 0.5 }));
+    const zooMesh = new THREE.Mesh(sphereWireGeo, new THREE.MeshBasicMaterial({ color: 0x38bdf8, wireframe: true, transparent: true, opacity: 0.25 }));
+    const zoaMesh = new THREE.Mesh(sphereWireGeo, new THREE.MeshBasicMaterial({ color: 0x4ade80, wireframe: true, transparent: true, opacity: 0.14 }));
+    const blindConeGeo = new THREE.ConeGeometry(1, 1, 28, 1, true);
+    blindConeGeo.translate(0, -0.5, 0);
+    blindConeGeo.rotateX(Math.PI / 2);
+    const blindConeMesh = new THREE.Mesh(blindConeGeo,
+      new THREE.MeshBasicMaterial({ color: 0x0f172a, transparent: true, opacity: 0.48, side: THREE.DoubleSide, depthWrite: false }));
+    birdZonesGroup.add(zorMesh, zooMesh, zoaMesh, blindConeMesh);
+    scene.add(birdZonesGroup);
+
+    function syncBirdZonesVisual(pos0, dir0, idx) {
+      if (!params.showBirdZones || idx < 0) return;
+      birdZonesGroup.position.copy(pos0);
+      const pr = getIndividualParams(idx);
+      zorMesh.scale.setScalar(pr.rr_i);
+      zooMesh.scale.setScalar(pr.ro_i);
+      zoaMesh.scale.setScalar(pr.ra_i);
+      const m = new THREE.Matrix4().lookAt(dir0, ZERO_VEC, WORLD_UP);
+      birdZonesGroup.quaternion.setFromRotationMatrix(m);
+      const halfBlind = ((360 - params.alpha) * 0.5 * Math.PI) / 180.0;
+      if (halfBlind <= 0.01) {
+        blindConeMesh.visible = false;
+      } else {
+        blindConeMesh.visible = true;
+        const coneLen = pr.ra_i * Math.cos(halfBlind);
+        const coneRad = pr.ra_i * Math.sin(halfBlind);
+        blindConeMesh.scale.set(coneRad, coneRad, Math.max(0.05, coneLen));
+      }
+    }
+
+    // Plumes (capture)
+    const FEATHER_N = 160;
+    const featherPos = new Float32Array(FEATHER_N * 3);
+    const featherVel = new Float32Array(FEATHER_N * 3);
+    const featherLife = new Float32Array(FEATHER_N);
+    let featherPtr = 0;
+    for (let i = 0; i < FEATHER_N; i++) featherPos[i * 3 + 1] = -9999;
+    const featherGeo = new THREE.BufferGeometry();
+    featherGeo.setAttribute('position', new THREE.BufferAttribute(featherPos, 3));
+    const featherPoints = new THREE.Points(featherGeo,
+      new THREE.PointsMaterial({ color: 0xf5f5f4, size: 0.3, transparent: true, opacity: 0.9, depthWrite: false }));
+    featherPoints.frustumCulled = false;
+    scene.add(featherPoints);
+
+    function spawnFeathers(x, y, z) {
+      for (let k = 0; k < 18; k++) {
+        const idx = featherPtr;
+        featherPtr = (featherPtr + 1) % FEATHER_N;
+        featherPos[idx * 3] = x; featherPos[idx * 3 + 1] = y; featherPos[idx * 3 + 2] = z;
+        featherVel[idx * 3] = (Math.random() - 0.5) * 4;
+        featherVel[idx * 3 + 1] = Math.random() * 2;
+        featherVel[idx * 3 + 2] = (Math.random() - 0.5) * 4;
+        featherLife[idx] = 1.5;
+      }
+    }
+    function updateFeathers(dt) {
+      let any = false;
+      for (let idx = 0; idx < FEATHER_N; idx++) {
+        if (featherLife[idx] <= 0) continue;
+        featherLife[idx] -= dt;
+        featherVel[idx * 3 + 1] -= 3 * dt;
+        for (let c = 0; c < 3; c++) featherPos[idx * 3 + c] += featherVel[idx * 3 + c] * dt;
+        if (featherLife[idx] <= 0) featherPos[idx * 3 + 1] = -9999;
+        any = true;
+      }
+      if (any) featherGeo.attributes.position.needsUpdate = true;
+    }
+
+    // ========================================================================
+    // 13. ENVIRONNEMENTS : RELIEF, EAU, VÉGÉTATION
+    // ========================================================================
+    const envGroup = new THREE.Group();
+    scene.add(envGroup);
+
+    const PALETTES = {
+      forest:   { stops: [[-5, 0x2d4f2a], [3, 0x2f5d2a], [10, 0x3f6f35], [18, 0x5c6b3a]], rock: 0x6b5a48, rockSlope: 0.8 },
+      lake:     { stops: [[-20, 0x8a7a4e], [-0.5, 0xc9b67e], [1.5, 0xa5b05e], [6, 0x5f8a3a], [18, 0x4a7a34]], rock: 0x7a7060, rockSlope: 0.75 },
+      mountain: { stops: [[0, 0x4f6b3a], [14, 0x6b7a45], [32, 0x8a7d6a], [46, 0xe8eef5], [70, 0xffffff]], rock: 0x6e6a66, rockSlope: 0.72 },
+      plain:    { stops: [[-5, 0x9aa35a], [3, 0xb8a852], [8, 0xc9a85c]], rock: 0x8b7b5b, rockSlope: 0.8 }
+    };
+    const _c1 = new THREE.Color(), _c2 = new THREE.Color(), _rockC = new THREE.Color();
+    function terrainColor(h, ny, out) {
+      const P = PALETTES[currentBiome];
+      const st = P.stops;
+      if (h <= st[0][0]) out.setHex(st[0][1]);
+      else if (h >= st[st.length - 1][0]) out.setHex(st[st.length - 1][1]);
+      else {
+        for (let k = 0; k < st.length - 1; k++) {
+          if (h >= st[k][0] && h <= st[k + 1][0]) {
+            const t = (h - st[k][0]) / (st[k + 1][0] - st[k][0]);
+            _c1.setHex(st[k][1]); _c2.setHex(st[k + 1][1]);
+            out.copy(_c1).lerp(_c2, t);
+            break;
+          }
+        }
+      }
+      const rockT = THREE.MathUtils.clamp((P.rockSlope - ny) / 0.2, 0, 1);
+      if (rockT > 0) { _rockC.setHex(P.rock); out.lerp(_rockC, rockT); }
+    }
+
+    function buildTerrain() {
+      const size = 600, seg = 160;
+      const geo = new THREE.PlaneGeometry(size, size, seg, seg);
+      geo.rotateX(-Math.PI / 2);
+      const pos = geo.attributes.position;
+      for (let i = 0; i < pos.count; i++) pos.setY(i, groundRaw(pos.getX(i), pos.getZ(i)));
+      geo.computeVertexNormals();
+      const normals = geo.attributes.normal;
+      const colors = new Float32Array(pos.count * 3);
+      const col = new THREE.Color();
+      for (let i = 0; i < pos.count; i++) {
+        terrainColor(pos.getY(i), normals.getY(i), col);
+        colors[i * 3] = col.r; colors[i * 3 + 1] = col.g; colors[i * 3 + 2] = col.b;
+      }
+      geo.setAttribute('color', new THREE.BufferAttribute(colors, 3));
+      const mesh = new THREE.Mesh(geo, new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.95, metalness: 0 }));
+      envGroup.add(mesh);
+    }
+
+    function buildWater() {
+      const mat = new THREE.MeshStandardMaterial({ color: 0x1f6f9e, roughness: 0.08, metalness: 0.25, transparent: true, opacity: 0.92 });
+      const water = new THREE.Mesh(new THREE.CircleGeometry(48, 72), mat);
+      water.rotation.x = -Math.PI / 2;
+      water.position.y = 0.03;
+      envGroup.add(water);
+    }
+
+    function buildVegetation() {
+      const trunkGeo = new THREE.CylinderGeometry(0.3, 0.45, 1, 6); trunkGeo.translate(0, 0.5, 0);
+      const pineGeo = new THREE.ConeGeometry(1, 1, 7); pineGeo.translate(0, 0.5, 0);
+      const sphereGeo = new THREE.SphereGeometry(1, 10, 7);
+      const rockGeo = new THREE.IcosahedronGeometry(1, 1);
+      const trunkMat = new THREE.MeshStandardMaterial({ color: 0x5a4330, roughness: 1 });
+      const pineMat = new THREE.MeshStandardMaterial({ color: 0x1f4d2b, roughness: 0.9, flatShading: true });
+      const leafMat = new THREE.MeshStandardMaterial({ color: 0x6b8f2e, roughness: 0.85, flatShading: true });
+      const rockMat = new THREE.MeshStandardMaterial({ color: 0x7d7770, roughness: 0.95, flatShading: true });
+
+      const trunks = [], pines = [], leaves = [], rocks = [];
+      const add = (arr, px, py, pz, sx, sy, sz) => {
+        const m = new THREE.Matrix4();
+        m.compose(new THREE.Vector3(px, py, pz), new THREE.Quaternion(), new THREE.Vector3(sx, sy, sz));
+        arr.push(m);
+      };
+      const rnd = (a, b) => a + Math.random() * (b - a);
+
+      if (currentBiome === 'forest' || currentBiome === 'lake' || currentBiome === 'plain') {
+        const count = { forest: 300, lake: 110, plain: 70 }[currentBiome];
+        const span = { forest: 190, lake: 120, plain: 200 }[currentBiome];
+        let placed = 0, tries = 0;
+        while (placed < count && tries < count * 8) {
+          tries++;
+          let x, z;
+          if (currentBiome === 'lake') {
+            const a = Math.random() * TWO_PI, r = rnd(50, span);
+            x = Math.cos(a) * r; z = Math.sin(a) * r;
+          } else {
+            x = rnd(-span, span); z = rnd(-span, span);
+          }
+          if (Math.hypot(x, z) < 12) continue;   // zone de départ dégagée
+          const g = groundH(x, z);
+          if (currentBiome === 'lake' && (g < 1.2 || g > 12)) continue; // rives uniquement
+          if (currentBiome === 'plain' && g < 0) continue;
+
+          if (currentBiome === 'plain') {
+            const H = rnd(5, 7);
+            add(trunks, x, g, z, 1, 0.6 * H, 1);
+            add(leaves, x, g + 0.6 * H, z, 2.2, 0.6, 2.2);
+            envObstacles.push({ ax: x, ay: g, az: z, bx: x, by: g + 0.6 * H, bz: z, R: 0.8 });
+          } else {
+            const H = rnd(7, 12);
+            add(trunks, x, g, z, 1, 0.5 * H, 1);
+            add(pines, x, g + 0.45 * H, z, 0.18 * H, 0.6 * H, 0.18 * H);
+            envObstacles.push({ ax: x, ay: g, az: z, bx: x, by: g + 0.6 * H, bz: z, R: 0.9 });
+          }
+          placed++;
+        }
+      }
+
+      if (currentBiome === 'mountain') {
+        let placed = 0;
+        for (let t = 0; placed < 110 && t < 900; t++) {
+          const x = rnd(-200, 200), z = rnd(-200, 200);
+          if (Math.hypot(x, z) < 14) continue;
+          const g = groundH(x, z);
+          const r = rnd(1.2, 3.8);
+          const cy = g + r * 0.2;
+          add(rocks, x, cy, z, r, r * 0.8, r);
+          envObstacles.push({ ax: x, ay: cy, az: z, bx: x, by: cy, bz: z, R: r * 0.85 });
+          placed++;
+        }
+      }
+
+      const addInst = (geo, mat, arr) => {
+        if (arr.length === 0) return;
+        const im = new THREE.InstancedMesh(geo, mat, arr.length);
+        arr.forEach((m, i) => im.setMatrixAt(i, m));
+        im.instanceMatrix.needsUpdate = true;
+        envGroup.add(im);
+      };
+      addInst(trunkGeo, trunkMat, trunks);
+      addInst(pineGeo, pineMat, pines);
+      addInst(sphereGeo, leafMat, leaves);
+      addInst(rockGeo, rockMat, rocks);
+    }
+
+    function clearEnvironment() {
+      while (envGroup.children.length) {
+        const c = envGroup.children[0];
+        envGroup.remove(c);
+        c.traverse(o => {
+          if (o.geometry) o.geometry.dispose();
+          if (o.material) o.material.dispose();
+        });
+      }
+    }
+
+    function buildEnvironment() {
+      clearEnvironment();
+      envObstacles = [];
+      if (currentBiome === 'none') return;
+      buildTerrain();
+      if (currentBiome === 'lake') buildWater();
+      buildVegetation();
+    }
+
+    function applyBiomeVisuals() {
+      const S = BIOME_SETTINGS[currentBiome];
+      skyMat.uniforms.topColor.value.setHex(S.sky[0]);
+      skyMat.uniforms.midColor.value.setHex(S.sky[1]);
+      skyMat.uniforms.horizonColor.value.setHex(S.sky[2]);
+      skyMat.uniforms.bottomColor.value.setHex(S.sky[3]);
+      scene.fog = S.fog ? new THREE.FogExp2(S.fog[0], S.fog[1]) : null;
+    }
+
+    // ========================================================================
+    // 14. OBSTACLES AJOUTÉS PAR L'UTILISATEUR
+    // ========================================================================
+    const userObsGroup = new THREE.Group();
+    scene.add(userObsGroup);
+    const obsMat = new THREE.MeshStandardMaterial({ color: 0xf472b6, emissive: 0x3b0a24, roughness: 0.4 });
+
+    function addUserObstacle() {
+      if (userObstacles.length >= OBS_MAX) return;
+      let dX = dGroup.x, dZ = dGroup.z;
+      let L = Math.hypot(dX, dZ);
+      if (L < 0.2) { const a = Math.random() * TWO_PI; dX = Math.cos(a); dZ = Math.sin(a); L = 1; }
+      dX /= L; dZ /= L;
+      const lat = (Math.random() - 0.5) * 18;
+      const dist = 24 + Math.random() * 8;
+      const x = cGroup.x + dX * dist - dZ * lat;
+      const z = cGroup.z + dZ * dist + dX * lat;
+
+      let o, mesh;
+      if (Math.random() < 0.5) {
+        // Pylône
+        const R = 1.3, H = 18;
+        const g = floorAt(x, z);
+        o = { ax: x, ay: g, az: z, bx: x, by: g + H, bz: z, R };
+        mesh = new THREE.Mesh(new THREE.CylinderGeometry(R, R, H, 14), obsMat);
+        mesh.position.set(x, g + H / 2, z);
+      } else {
+        // Ballon / rocher en altitude
+        const R = 2.5 + Math.random() * 2;
+        const y = Math.max(cGroup.y + (Math.random() - 0.5) * 10, floorAt(x, z) + R + 1);
+        o = { ax: x, ay: y, az: z, bx: x, by: y, bz: z, R };
+        mesh = new THREE.Mesh(new THREE.SphereGeometry(R, 20, 14), obsMat);
+        mesh.position.set(x, y, z);
+      }
+      userObstacles.push(o);
+      userObsGroup.add(mesh);
+      rebuildObstacleFlat();
+      updateEnvStats();
+    }
+
+    function clearUserObstacles() {
+      for (const m of [...userObsGroup.children]) {
+        userObsGroup.remove(m);
+        m.geometry.dispose();
+      }
+      userObstacles = [];
+      rebuildObstacleFlat();
+      updateEnvStats();
+    }
+
+    // ========================================================================
+    // 15. CHANGEMENT D'ENVIRONNEMENT
+    // ========================================================================
+    function setBiome(name) {
+      if (hysteresis.active) stopHysteresisExperiment();
+      currentBiome = name;
+      document.getElementById('sel-biome').value = name;
+      seedOff = Math.random() * 400;
+      clearUserObstacles();
+      buildEnvironment();
+      applyBiomeVisuals();
+      rebuildObstacleFlat();
+      initFlock(false);
+      updateEnvStats();
+    }
+
+    // ========================================================================
+    // 16. PROTOCOLE D'HYSTÉRÉSIS (Fig. 4)
+    // ========================================================================
+    function startHysteresisExperiment() {
+      predator.active = false;
+      predGroup.visible = false;
+      if (currentBiome !== 'none') setBiome('none');
+      else clearUserObstacles();
+
+      params.N = 100; params.rr = 1.0; params.alpha = 270; params.theta = 40; params.s = 3.0; params.sigma = 0.05;
+      params.sortParam = 'none';
+      params.simSpeed = 6.0;
+
+      hysteresis.active = true;
+      hysteresis.direction = 1;
+      hysteresis.roCurrent = 1.0;
+      hysteresis.stepsAtValue = 0;
+      hysteresis.upPoints = [];
+      hysteresis.downPoints = [];
+
+      applyRoWithFixedRa14(1.0);
+      syncUIFromParams();
+      initFlock(false);
+      document.getElementById('btn-hysteresis').textContent = '⏹ Arrêter le protocole d\'Hystérésis';
+      document.getElementById('chart-mode-label').textContent = 'Courbe en ro (Hystérésis)';
+      updateEnvStats();
+    }
+
+    function stopHysteresisExperiment() {
+      hysteresis.active = false;
+      document.getElementById('btn-hysteresis').textContent = '▶ Lancer le cycle d\'Hystérésis (ro : 1 → 4.5 → 1)';
+      document.getElementById('hysteresis-status').textContent = 'Cycle terminé ou interrompu. Le graphe conserve l\'historique.';
+    }
+
+    function applyRoWithFixedRa14(roVal) {
+      params.rr = 1.0;
+      params.dro = Math.max(0, roVal - 1.0);
+      params.dra = Math.max(0, 14.0 - roVal);
+    }
+
+    function updateHysteresisStep() {
+      hysteresis.stepsAtValue++;
+      const statusEl = document.getElementById('hysteresis-status');
+      const phaseTxt = hysteresis.direction > 0 ? 'Croissance ↑' : 'Décroissance ↓';
+      statusEl.textContent = `${phaseTxt} : ro = ${hysteresis.roCurrent.toFixed(2)} (ra = 14 fixe) — pas ${hysteresis.stepsAtValue}/${hysteresis.stepsPerIncrement}`;
+
+      if (hysteresis.stepsAtValue >= hysteresis.stepsPerIncrement) {
+        const pt = { ro: hysteresis.roCurrent, p: pGroup, m: mGroup };
+        if (hysteresis.direction > 0) hysteresis.upPoints.push(pt);
+        else hysteresis.downPoints.push(pt);
+
+        hysteresis.stepsAtValue = 0;
+        if (hysteresis.direction > 0) {
+          hysteresis.roCurrent = Math.round((hysteresis.roCurrent + 0.25) * 100) / 100;
+          if (hysteresis.roCurrent > 4.5) { hysteresis.direction = -1; hysteresis.roCurrent = 4.5; }
+        } else {
+          hysteresis.roCurrent = Math.round((hysteresis.roCurrent - 0.25) * 100) / 100;
+          if (hysteresis.roCurrent < 1.0) {
+            stopHysteresisExperiment();
+            statusEl.textContent = 'Hystérésis complète ! Notez l\'absence de Tore au retour (pointillés).';
+            return;
+          }
+        }
+        applyRoWithFixedRa14(hysteresis.roCurrent);
+        syncUIFromParams();
+      }
+    }
+
+    // ========================================================================
+    // 17. GRAPHE 2D
+    // ========================================================================
+    const chartCanvas = document.getElementById('chart-canvas');
+    const ctx = chartCanvas.getContext('2d');
+
+    function drawChart() {
+      const W = chartCanvas.width, H = chartCanvas.height;
+      ctx.clearRect(0, 0, W, H);
+      ctx.strokeStyle = 'rgba(255,255,255,0.07)';
+      ctx.lineWidth = 1;
+      for (let g = 0.25; g < 1.0; g += 0.25) {
+        const y = H - g * (H - 14) - 7;
+        ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(W, y); ctx.stroke();
+      }
+
+      if (hysteresis.active || hysteresis.upPoints.length > 1) {
+        const xOfRo = (ro) => 12 + ((ro - 1.0) / 3.5) * (W - 24);
+        const yOfVal = (v) => H - 8 - v * (H - 18);
+        const drawCurve = (pts, color, dashed) => {
+          if (pts.length === 0) return;
+          ctx.save();
+          ctx.strokeStyle = color; ctx.fillStyle = color; ctx.lineWidth = 2;
+          if (dashed) ctx.setLineDash([4, 3]);
+          ctx.beginPath();
+          pts.forEach((pt, idx) => {
+            const x = xOfRo(pt.ro), y = yOfVal(pt.val);
+            if (idx === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+          });
+          ctx.stroke();
+          pts.forEach(pt => { ctx.beginPath(); ctx.arc(xOfRo(pt.ro), yOfVal(pt.val), 2.3, 0, TWO_PI); ctx.fill(); });
+          ctx.restore();
+        };
+        drawCurve(hysteresis.upPoints.map(d => ({ ro: d.ro, val: d.p })), '#38bdf8', false);
+        drawCurve(hysteresis.upPoints.map(d => ({ ro: d.ro, val: d.m })), '#fb923c', false);
+        drawCurve(hysteresis.downPoints.map(d => ({ ro: d.ro, val: d.p })), '#7dd3fc', true);
+        drawCurve(hysteresis.downPoints.map(d => ({ ro: d.ro, val: d.m })), '#fdba74', true);
+        if (hysteresis.active) {
+          const cx = xOfRo(hysteresis.roCurrent);
+          ctx.strokeStyle = 'rgba(255,255,255,0.35)';
+          ctx.beginPath(); ctx.moveTo(cx, 0); ctx.lineTo(cx, H); ctx.stroke();
+        }
+      } else {
+        if (timeHistory.length < 2) return;
+        const stepX = W / (MAX_HISTORY - 1);
+        const yOfVal = (v) => H - 6 - v * (H - 12);
+        ctx.lineWidth = 1.8;
+        ctx.strokeStyle = '#38bdf8';
+        ctx.beginPath();
+        timeHistory.forEach((pt, idx) => { const x = idx * stepX, y = yOfVal(pt.p); if (idx === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y); });
+        ctx.stroke();
+        ctx.strokeStyle = '#fb923c';
+        ctx.beginPath();
+        timeHistory.forEach((pt, idx) => { const x = idx * stepX, y = yOfVal(pt.m); if (idx === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y); });
+        ctx.stroke();
+      }
+    }
+
+    // ========================================================================
+    // 18. BOUCLE D'ANIMATION
+    // ========================================================================
+    const tmpPos = new THREE.Vector3();
+    const tmpDir = new THREE.Vector3();
+    const tmpPredPos = new THREE.Vector3();
+    const tmpPredDir = new THREE.Vector3();
+    const interpCentroid = new THREE.Vector3();
+    const lastCameraFollow = new THREE.Vector3();
+
+    let accumulator = 0;
+    let lastTime = performance.now();
+
+    function animate(now) {
+      requestAnimationFrame(animate);
+      const dtReal = Math.min(0.05, (now - lastTime) / 1000);
+      lastTime = now;
+
+      if (!params.paused) {
+        accumulator += dtReal * params.simSpeed;
+        let sub = 0;
+        while (accumulator >= TAU && sub < 15) {
+          stepSimulation();
+          accumulator -= TAU;
+          sub++;
+        }
+      }
+
+      const alphaInterp = params.paused ? 1.0 : Math.max(0, Math.min(1, accumulator / TAU));
+      const N = params.N;
+
+      // Premier oiseau vivant : référence pour l'affichage Fig. 1
+      let zoneIdx = -1;
+      for (let i = 0; i < N; i++) if (alive[i]) { zoneIdx = i; break; }
+      if (zoneIdx !== lastZoneIdx) { lastZoneIdx = zoneIdx; updateBirdColors(); }
+
+      for (let i = 0; i < MAX_N; i++) {
+        if (i >= N || !alive[i]) {
+          bodyInstanced.setMatrixAt(i, zeroMatrix);
+          wingRInstanced.setMatrixAt(i, zeroMatrix);
+          wingLInstanced.setMatrixAt(i, zeroMatrix);
+          continue;
+        }
+        tmpPos.set(
+          prevPosX[i] + (posX[i] - prevPosX[i]) * alphaInterp,
+          prevPosY[i] + (posY[i] - prevPosY[i]) * alphaInterp,
+          prevPosZ[i] + (posZ[i] - prevPosZ[i]) * alphaInterp
+        );
+        tmpDir.set(
+          prevVelX[i] + (velX[i] - prevVelX[i]) * alphaInterp,
+          prevVelY[i] + (velY[i] - prevVelY[i]) * alphaInterp,
+          prevVelZ[i] + (velZ[i] - prevVelZ[i]) * alphaInterp
+        ).normalize();
+
+        // Roulis visuel dans les virages
+        const crossY = prevVelZ[i] * velX[i] - prevVelX[i] * velZ[i];
+        const targetBank = Math.max(-0.65, Math.min(0.65, -crossY * 6.5));
+        indivBank[i] += (targetBank - indivBank[i]) * Math.min(1, dtReal * 8);
+
+        if (!params.paused) {
+          const pr = getIndividualParams(i);
+          indivPhase[i] += dtReal * (7.5 + pr.s_i * 1.4) * Math.min(2.5, params.simSpeed);
+        }
+        const flap = 0.58 * Math.sin(indivPhase[i]) + 0.10 * Math.cos(2 * indivPhase[i]);
+        writeBirdMatrices(bodyInstanced, wingRInstanced, wingLInstanced, i,
+          tmpPos.x, tmpPos.y, tmpPos.z, tmpDir, indivBank[i], flap, 1);
+
+        if (i === zoneIdx && params.showBirdZones) syncBirdZonesVisual(tmpPos, tmpDir, i);
+      }
+      bodyInstanced.instanceMatrix.needsUpdate = true;
+      wingRInstanced.instanceMatrix.needsUpdate = true;
+      wingLInstanced.instanceMatrix.needsUpdate = true;
+
+      // Faucon
+      predGroup.visible = predator.active;
+      if (predator.active) {
+        const a = alphaInterp;
+        tmpPredPos.set(
+          predator.px + (predator.x - predator.px) * a,
+          predator.py + (predator.y - predator.py) * a,
+          predator.pz + (predator.z - predator.pz) * a
+        );
+        tmpPredDir.set(predator.vx, predator.vy, predator.vz).normalize();
+        if (!params.paused) predator.phase += dtReal * (6 + params.predSpeed) * Math.min(2.5, params.simSpeed);
+        const flapP = 0.5 * Math.sin(predator.phase);
+        writeBirdMatrices(hawkBody, hawkWingR, hawkWingL, 0,
+          tmpPredPos.x, tmpPredPos.y, tmpPredPos.z, tmpPredDir, 0, flapP, 1.9);
+        hawkBody.instanceMatrix.needsUpdate = true;
+        hawkWingR.instanceMatrix.needsUpdate = true;
+        hawkWingL.instanceMatrix.needsUpdate = true;
+      }
+
+      updateFeathers(dtReal);
+
+      // Caméra : suivi fluide du centre (ou du plus grand sous-groupe)
+      interpCentroid.lerpVectors(prevCGroup, cGroup, alphaInterp);
+      if (params.followGroup) {
+        const desired = numClusters > 1 ? cameraFollowTarget : interpCentroid;
+        const delta = new THREE.Vector3().subVectors(desired, lastCameraFollow);
+        if (delta.lengthSq() < 400) {
+          const step = delta.multiplyScalar(Math.min(1, dtReal * 10));
+          camera.position.add(step);
+          controls.target.add(step);
+          lastCameraFollow.add(step);
+        } else {
+          lastCameraFollow.copy(desired);
+          controls.target.copy(desired);
+        }
+      } else {
+        lastCameraFollow.copy(controls.target);
+      }
+
+      skyDome.position.copy(camera.position);
+
+      // Recyclage des particules d'air autour de la cible
+      const posAttr = dustGeo.attributes.position;
+      const halfBox = DUST_BOX * 0.5;
+      for (let i = 0; i < DUST_COUNT; i++) {
+        let changed = false;
+        let x = posAttr.getX(i), y = posAttr.getY(i), z = posAttr.getZ(i);
+        let dx = x - controls.target.x, dy = y - controls.target.y, dz = z - controls.target.z;
+        if (dx > halfBox) { posAttr.setX(i, x - DUST_BOX); changed = true; } else if (dx < -halfBox) { posAttr.setX(i, x + DUST_BOX); changed = true; }
+        if (dy > halfBox) { posAttr.setY(i, y - DUST_BOX); changed = true; } else if (dy < -halfBox) { posAttr.setY(i, y + DUST_BOX); changed = true; }
+        if (dz > halfBox) { posAttr.setZ(i, z - DUST_BOX); changed = true; } else if (dz < -halfBox) { posAttr.setZ(i, z + DUST_BOX); changed = true; }
+        if (changed) posAttr.needsUpdate = true;
+      }
+
+      if (params.showGroupPlane) {
+        groupPlaneGroup.position.copy(interpCentroid);
+        const dLen = dGroup.length();
+        if (dLen > 1e-4) {
+          const dirNorm = dGroup.clone().normalize();
+          planeMesh.quaternion.setFromUnitVectors(new THREE.Vector3(0, 0, 1), dirNorm);
+          planeBorder.quaternion.copy(planeMesh.quaternion);
+          dArrow.setDirection(dirNorm);
+          dArrow.setLength(4.0 + 4.0 * dLen, 1.0, 0.55);
+        }
+      }
+
+      controls.update();
+
+      // La caméra ne passe jamais sous le relief
+      const gCam = floorAt(camera.position.x, camera.position.z) + 1.5;
+      if (camera.position.y < gCam) camera.position.y = gCam;
+
+      updateHUD();
+      drawChart();
+      renderer.render(scene, camera);
+    }
+
+    // ========================================================================
+    // 19. INTERFACE UTILISATEUR
+    // ========================================================================
+    function updateEnvStats() {
+      const el = document.getElementById('env-stats');
+      if (!el) return;
+      let predTxt = 'absent';
+      if (predator.active) predTxt = predator.cooldown > 0 ? 'actif (repos après capture)' : 'actif — en chasse';
+      el.innerHTML =
+        `Oiseaux vivants : <b>${nAlive}</b> / ${params.N} &nbsp;·&nbsp; Captures : <b>${captures}</b><br>` +
+        `Faucon : ${predTxt}<br>` +
+        `Obstacles : ${envObstacles.length} de décor &nbsp;·&nbsp; ${userObstacles.length} ajouté(s)`;
+      refreshPredatorButton();
+    }
+
+    function refreshPredatorButton() {
+      document.getElementById('btn-predator').textContent = predator.active ? '🦅 Retirer le faucon' : '🦅 Ajouter un faucon';
+    }
+
+    function updateHUD() {
+      document.getElementById('val-p').textContent = pGroup.toFixed(3);
+      document.getElementById('val-m').textContent = mGroup.toFixed(3);
+      document.getElementById('bar-p').style.width = `${(pGroup * 100).toFixed(1)}%`;
+      document.getElementById('bar-m').style.width = `${(mGroup * 100).toFixed(1)}%`;
+      document.getElementById('time-info').textContent = `t = ${(stepCount * TAU).toFixed(1)} s (${stepCount} pas)`;
+
+      const clEl = document.getElementById('val-clusters');
+      if (numClusters <= 1) {
+        clEl.textContent = '1 groupe (cohésif)';
+        clEl.style.color = '#4ade80';
+      } else {
+        clEl.textContent = `${numClusters} sous-groupes (fragmenté)`;
+        clEl.style.color = '#fb923c';
+      }
+
+      const badge = document.getElementById('state-badge');
+      if (numClusters > 2) {
+        badge.textContent = 'Groupe fragmenté';
+        badge.style.borderColor = '#f87171'; badge.style.color = '#fca5a5';
+      } else if (mGroup > 0.52 && pGroup < 0.45) {
+        badge.textContent = 'Tore / Moulinet (Torus)';
+        badge.style.borderColor = '#fb923c'; badge.style.color = '#fdba74';
+      } else if (pGroup > 0.92) {
+        badge.textContent = 'Vol hautement parallèle';
+        badge.style.borderColor = '#38bdf8'; badge.style.color = '#7dd3fc';
+      } else if (pGroup > 0.55) {
+        badge.textContent = 'Vol parallèle dynamique';
+        badge.style.borderColor = '#34d399'; badge.style.color = '#6ee7b7';
+      } else {
+        badge.textContent = 'Essaim (Swarm)';
+        badge.style.borderColor = '#a78bfa'; badge.style.color = '#c4b5fd';
+      }
+
+      if (stepCount % 10 === 0) updateEnvStats();
+    }
+
+    function syncUIFromParams() {
+      document.getElementById('inp-N').value = params.N;
+      document.getElementById('lbl-N').textContent = params.N;
+      document.getElementById('inp-rr').value = params.rr;
+      document.getElementById('lbl-rr').textContent = params.rr.toFixed(1);
+      const ro = params.rr + params.dro, ra = ro + params.dra;
+      document.getElementById('inp-dro').value = params.dro;
+      document.getElementById('lbl-dro').textContent = `${params.dro.toFixed(2)} (ro=${ro.toFixed(2)})`;
+      document.getElementById('inp-dra').value = params.dra;
+      document.getElementById('lbl-dra').textContent = `${params.dra.toFixed(2)} (ra=${ra.toFixed(2)})`;
+      document.getElementById('inp-alpha').value = params.alpha;
+      document.getElementById('lbl-alpha').textContent = `${params.alpha}°`;
+      document.getElementById('inp-theta').value = params.theta;
+      document.getElementById('lbl-theta').textContent = `${params.theta}°/s`;
+      document.getElementById('inp-s').value = params.s;
+      document.getElementById('lbl-s').textContent = params.s.toFixed(1);
+      document.getElementById('inp-sigma').value = params.sigma;
+      document.getElementById('lbl-sigma').textContent = `${params.sigma.toFixed(3)} rad`;
+      document.getElementById('inp-simspeed').value = params.simSpeed;
+      document.getElementById('lbl-simspeed').textContent = `${params.simSpeed.toFixed(1)}x`;
+      document.getElementById('inp-predspeed').value = params.predSpeed;
+      document.getElementById('lbl-predspeed').textContent = params.predSpeed.toFixed(1);
+      document.getElementById('sel-sorting').value = params.sortParam;
+      document.getElementById('sorting-controls').style.display = params.sortParam === 'none' ? 'none' : 'block';
+      updateBirdColors();
+    }
+
+    function applyPreset(dro, dra) {
+      if (hysteresis.active) stopHysteresisExperiment();
+      hysteresis.upPoints = []; hysteresis.downPoints = [];
+      document.getElementById('chart-mode-label').textContent = 'Temps réel';
+      params.rr = 1.0; params.dro = dro; params.dra = dra;
+      params.alpha = 270; params.theta = 40; params.s = 3.0; params.sigma = 0.05;
+      syncUIFromParams();
+    }
+
+    document.getElementById('preset-swarm').addEventListener('click', () => applyPreset(0.25, 10.0));
+    document.getElementById('preset-torus').addEventListener('click', () => applyPreset(1.0, 12.0));
+    document.getElementById('preset-dynamic').addEventListener('click', () => applyPreset(5.0, 8.0));
+    document.getElementById('preset-highly').addEventListener('click', () => applyPreset(12.0, 10.0));
+
+    document.getElementById('btn-hysteresis').addEventListener('click', () => {
+      if (hysteresis.active) stopHysteresisExperiment();
+      else startHysteresisExperiment();
+    });
+
+    // Environnement, faucon, obstacles
+    document.getElementById('sel-biome').addEventListener('change', (e) => setBiome(e.target.value));
+
+    document.getElementById('btn-predator').addEventListener('click', () => {
+      if (predator.active) {
+        predator.active = false;
+      } else {
+        spawnPredator();
+      }
+      refreshPredatorButton();
+      updateEnvStats();
+    });
+
+    document.getElementById('btn-obstacle').addEventListener('click', () => {
+      addUserObstacle();
+    });
+
+    document.getElementById('btn-clear-obs').addEventListener('click', () => {
+      clearUserObstacles();
+    });
+
+    document.getElementById('inp-predspeed').addEventListener('input', (e) => {
+      params.predSpeed = parseFloat(e.target.value);
+      syncUIFromParams();
+    });
+
+    // Curseurs des paramètres
+    document.getElementById('inp-N').addEventListener('input', (e) => {
+      const oldN = params.N;
+      params.N = parseInt(e.target.value, 10);
+      if (params.N > oldN) initFlock(false);
+      syncUIFromParams();
+    });
+    document.getElementById('inp-rr').addEventListener('input', (e) => { params.rr = parseFloat(e.target.value); syncUIFromParams(); });
+    document.getElementById('inp-dro').addEventListener('input', (e) => { params.dro = parseFloat(e.target.value); syncUIFromParams(); });
+    document.getElementById('inp-dra').addEventListener('input', (e) => { params.dra = parseFloat(e.target.value); syncUIFromParams(); });
+    document.getElementById('inp-alpha').addEventListener('input', (e) => { params.alpha = parseFloat(e.target.value); syncUIFromParams(); });
+    document.getElementById('inp-theta').addEventListener('input', (e) => { params.theta = parseFloat(e.target.value); syncUIFromParams(); });
+    document.getElementById('inp-s').addEventListener('input', (e) => { params.s = parseFloat(e.target.value); syncUIFromParams(); });
+    document.getElementById('inp-sigma').addEventListener('input', (e) => { params.sigma = parseFloat(e.target.value); syncUIFromParams(); });
+    document.getElementById('inp-simspeed').addEventListener('input', (e) => { params.simSpeed = parseFloat(e.target.value); syncUIFromParams(); });
+
+    // Tri spatial
+    const sortSlider = document.getElementById('inp-sort-sd');
+    document.getElementById('sel-sorting').addEventListener('change', (e) => {
+      params.sortParam = e.target.value;
+      if (params.sortParam === 's') { sortSlider.min = 0.02; sortSlider.max = 0.25; sortSlider.step = 0.01; params.sortSD = 0.15; }
+      else if (params.sortParam === 'rr') { sortSlider.min = 0.02; sortSlider.max = 0.30; sortSlider.step = 0.01; params.sortSD = 0.20; }
+      else if (params.sortParam === 'theta') { sortSlider.min = 0.5; sortSlider.max = 8.0; sortSlider.step = 0.5; params.sortSD = 5.0; }
+      else if (params.sortParam === 'ro') { sortSlider.min = 0.2; sortSlider.max = 2.5; sortSlider.step = 0.1; params.sortSD = 1.5; }
+      else if (params.sortParam === 'sigma') { sortSlider.min = 0.01; sortSlider.max = 0.08; sortSlider.step = 0.005; params.sortSD = 0.04; }
+      sortSlider.value = params.sortSD;
+      document.getElementById('lbl-sort-sd').textContent = params.sortSD;
+      syncUIFromParams();
+    });
+    sortSlider.addEventListener('input', (e) => {
+      params.sortSD = parseFloat(e.target.value);
+      document.getElementById('lbl-sort-sd').textContent = params.sortSD;
+    });
+
+    // Cases à cocher
+    document.getElementById('chk-follow').addEventListener('change', (e) => { params.followGroup = e.target.checked; });
+    document.getElementById('chk-trails').addEventListener('change', (e) => {
+      params.showTrails = e.target.checked;
+      trailLines.visible = params.showTrails;
+    });
+    document.getElementById('chk-plane').addEventListener('change', (e) => {
+      params.showGroupPlane = e.target.checked;
+      groupPlaneGroup.visible = params.showGroupPlane;
+    });
+    document.getElementById('chk-zones').addEventListener('change', (e) => {
+      params.showBirdZones = e.target.checked;
+      birdZonesGroup.visible = params.showBirdZones;
+      updateBirdColors();
+    });
+
+    // Pause et réinitialisation
+    document.getElementById('btn-pause').addEventListener('click', (e) => {
+      params.paused = !params.paused;
+      e.target.textContent = params.paused ? '▶ Reprendre' : '⏸ Pause';
+    });
+    document.getElementById('btn-reset').addEventListener('click', () => {
+      if (hysteresis.active) stopHysteresisExperiment();
+      hysteresis.upPoints = []; hysteresis.downPoints = [];
+      document.getElementById('chart-mode-label').textContent = 'Temps réel';
+      initFlock(true);
+      updateEnvStats();
+    });
+
+    window.addEventListener('resize', () => {
+      camera.aspect = window.innerWidth / window.innerHeight;
+      camera.updateProjectionMatrix();
+      renderer.setSize(window.innerWidth, window.innerHeight);
+    });
+
+    // ========================================================================
+    // 20. DÉMARRAGE
+    // ========================================================================
+    syncUIFromParams();
+    seedOff = Math.random() * 400;
+    buildEnvironment();
+    applyBiomeVisuals();
+    rebuildObstacleFlat();
+    initFlock(true);
+    lastCameraFollow.copy(cGroup);
+    controls.target.copy(cGroup);
+    updateEnvStats();
+    requestAnimationFrame(animate);
+  </script>
+</body>
+</html>
