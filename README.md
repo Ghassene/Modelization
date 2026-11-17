@@ -1,4 +1,5 @@
-# Modelization
+# Modelization of Couzin et al. (2002) — Collective Memory and Spatial Sorting in Animal Groups
+
 pour couzin for birds :
 
 **1. Prédateur (faucon)**
